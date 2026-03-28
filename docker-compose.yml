@@ -26,29 +26,19 @@ services:
       - games-net
 
   # ── Nginx Reverse Proxy ────────────────────────────────────────
+  # Cloudflare terminates SSL — origin only needs port 80
   nginx:
     image: nginx:alpine
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/ssl:/etc/letsencrypt:ro
-      - certbot-webroot:/var/www/certbot:ro
     depends_on:
       - frontend
       - backend
     networks:
       - games-net
-
-  # ── Certbot (Let's Encrypt SSL) ────────────────────────────────
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - ./nginx/ssl:/etc/letsencrypt
-      - certbot-webroot:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
   # ── Jitsi Meet ─────────────────────────────────────────────────
   jitsi-web:
@@ -140,7 +130,6 @@ services:
       - games-net
 
 volumes:
-  certbot-webroot:
   jitsi-web:
   jitsi-prosody:
   jitsi-jicofo:
