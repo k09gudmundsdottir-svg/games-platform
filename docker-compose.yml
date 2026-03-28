@@ -1,0 +1,153 @@
+version: '3.8'
+
+services:
+  # ── Frontend (React + Nginx) ───────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - games-net
+
+  # ── Backend (Node.js Express) ──────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - SUPABASE_URL=https://mjphpctvuxmbjhmcscoj.supabase.co
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+    networks:
+      - games-net
+
+  # ── Nginx Reverse Proxy ────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/letsencrypt:ro
+      - certbot-webroot:/var/www/certbot:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - games-net
+
+  # ── Certbot (Let's Encrypt SSL) ────────────────────────────────
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./nginx/ssl:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  # ── Jitsi Meet ─────────────────────────────────────────────────
+  jitsi-web:
+    image: jitsi/web:stable-9823
+    restart: unless-stopped
+    environment:
+      - ENABLE_AUTH=0
+      - ENABLE_GUESTS=1
+      - ENABLE_LOBBY=0
+      - PUBLIC_URL=https://video.games.azurenexus.com
+      - TZ=UTC
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_BOSH_URL_BASE=http://jitsi-prosody:5280
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_RECORDER_DOMAIN=recorder.meet.jitsi
+      - JICOFO_AUTH_USER=focus
+    volumes:
+      - jitsi-web:/config
+      - jitsi-transcripts:/usr/share/jitsi-meet/transcripts
+    networks:
+      games-net:
+        aliases:
+          - jitsi-web
+
+  jitsi-prosody:
+    image: jitsi/prosody:stable-9823
+    restart: unless-stopped
+    environment:
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_RECORDER_DOMAIN=recorder.meet.jitsi
+      - JICOFO_AUTH_USER=focus
+      - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD:-changeme}
+      - JIGASI_XMPP_USER=jigasi
+      - JIGASI_XMPP_PASSWORD=${JIGASI_XMPP_PASSWORD:-changeme}
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD:-changeme}
+      - TZ=UTC
+    volumes:
+      - jitsi-prosody:/config
+      - jitsi-plugins:/prosody-plugins-custom
+    networks:
+      games-net:
+        aliases:
+          - jitsi-prosody
+
+  jitsi-jicofo:
+    image: jitsi/jicofo:stable-9823
+    restart: unless-stopped
+    environment:
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - JICOFO_AUTH_USER=focus
+      - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD:-changeme}
+      - TZ=UTC
+    volumes:
+      - jitsi-jicofo:/config
+    depends_on:
+      - jitsi-prosody
+    networks:
+      - games-net
+
+  jitsi-jvb:
+    image: jitsi/jvb:stable-9823
+    restart: unless-stopped
+    ports:
+      - "10000:10000/udp"
+      - "4443:4443"
+    environment:
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_SERVER=jitsi-prosody
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD:-changeme}
+      - JVB_PORT=10000
+      - JVB_ADVERTISE_IPS=204.168.189.51
+      - JVB_STUN_SERVERS=stun.l.google.com:19302
+      - TZ=UTC
+    volumes:
+      - jitsi-jvb:/config
+    depends_on:
+      - jitsi-prosody
+    networks:
+      - games-net
+
+volumes:
+  certbot-webroot:
+  jitsi-web:
+  jitsi-prosody:
+  jitsi-jicofo:
+  jitsi-jvb:
+  jitsi-plugins:
+  jitsi-transcripts:
+
+networks:
+  games-net:
+    driver: bridge

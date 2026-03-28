@@ -1,0 +1,25 @@
+name: Deploy AzureNexus Games
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Hetzner
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 204.168.189.51
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /opt/games-platform
+            git pull origin main
+            docker compose build --no-cache
+            docker compose up -d
+            echo "Deployed at $(date)"

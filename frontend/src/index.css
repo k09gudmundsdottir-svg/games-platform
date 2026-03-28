@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-brand: 99 102 241;
+    --color-accent: 139 92 246;
+  }
+
+  body {
+    @apply bg-gray-950 text-gray-100;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  ::selection {
+    @apply bg-brand-500/30 text-white;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-700 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-600;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-xl
+           bg-gradient-to-r from-brand-600 to-purple-600
+           text-white font-semibold text-sm
+           shadow-lg shadow-brand-500/25
+           hover:shadow-brand-500/40 hover:from-brand-500 hover:to-purple-500
+           active:scale-[0.98]
+           transition-all duration-200 ease-out
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-brand-500/25;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-xl
+           bg-gray-800 border border-gray-700
+           text-gray-200 font-semibold text-sm
+           hover:bg-gray-700 hover:border-gray-600
+           active:scale-[0.98]
+           transition-all duration-200 ease-out;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg
+           text-gray-400 font-medium text-sm
+           hover:bg-gray-800 hover:text-gray-200
+           transition-all duration-150;
+  }
+
+  .card {
+    @apply bg-gray-900 border border-gray-800 rounded-2xl p-6
+           shadow-xl shadow-black/20;
+  }
+
+  .card-hover {
+    @apply card cursor-pointer
+           hover:border-brand-500/50 hover:shadow-brand-500/10
+           hover:scale-[1.02]
+           transition-all duration-300 ease-out;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl
+           bg-gray-800 border border-gray-700
+           text-gray-100 placeholder-gray-500
+           focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500
+           transition-all duration-200;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-blue-400 via-brand-400 to-purple-400
+           bg-clip-text text-transparent;
+  }
+
+  .glass {
+    @apply bg-gray-900/80 backdrop-blur-xl border border-gray-800/50;
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-gradient {
+    animation: gradient 8s ease infinite;
+    background-size: 200% 200%;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
