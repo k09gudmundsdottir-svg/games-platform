@@ -1,578 +1,804 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Copy, Check, Crown, User, Users, Plus, DoorOpen, Trophy, Sparkles } from "lucide-react";
+import { motion, AnimatePresence, Reorder } from "framer-motion";
 import GameLayout from "@/components/GameLayout";
-import { memeApi } from "@/lib/api";
-import { useGameRoom } from "@/hooks/useGameRoom";
+import { playCardFlip, playCardShuffle, playVictoryFanfare } from "@/lib/sounds";
+import { GripVertical, Crown, Award, Medal } from "lucide-react";
+import "@fontsource/jetbrains-mono/400.css";
+import "@fontsource/jetbrains-mono/700.css";
 
-/* ── Types ────────────────────────────────────────────────────────────── */
+const captionCards = [
+  "When you realize it's Monday tomorrow",
+  "Me trying to adult",
+  "That look when pizza arrives",
+  "When someone says 'we need to talk'",
+  "My face during meetings",
+  "Expectations vs. Reality",
+  "When WiFi disconnects for 2 seconds",
+];
 
-interface CaptionCard {
-  id: number;
-  text: string;
-}
+// Simulated submissions from other players
+const submittedCaptions = [
+  { player: "Jordan", caption: "When the code compiles on first try" },
+  { player: "Casey", caption: "POV: You forgot to save" },
+  { player: "Alex", caption: "Me pretending to understand the meeting" },
+  { player: "You", caption: "" }, // will be replaced with player's pick
+];
 
-interface MemeTemplate {
-  id: string;
-  name: string;
-}
+const WINNER_INDEX = 2; // "Alex" wins in this demo
 
-interface PlayerScore {
-  id: string;
-  name: string;
-  score: number;
-}
-
-interface Submission {
-  index?: number;
-  caption: string;
-  playerId?: string;
-  playerName?: string;
-}
-
-/* ── Confetti Effect ──────────────────────────────────────────────────── */
-
-const Confetti = () => {
-  const pieces = Array.from({ length: 40 }, (_, i) => ({
-    id: i,
-    x: Math.random() * 100,
-    delay: Math.random() * 0.5,
-    duration: 1.5 + Math.random() * 1.5,
-    color: ["bg-red-500", "bg-blue-500", "bg-yellow-500", "bg-green-500", "bg-pink-500", "bg-purple-500"][i % 6],
-    size: 4 + Math.random() * 6,
-    rotation: Math.random() * 360,
-  }));
+/* ─── Confetti Particle ─── */
+const ConfettiParticle = ({ delay, x }: { delay: number; x: number }) => {
+  const gold = [
+    "hsl(38 92% 55%)",
+    "hsl(28 85% 45%)",
+    "hsl(45 100% 65%)",
+    "hsl(38 70% 40%)",
+    "hsl(50 90% 70%)",
+  ];
+  const color = gold[Math.floor(Math.random() * gold.length)];
+  const size = 4 + Math.random() * 6;
+  const rotate = Math.random() * 720 - 360;
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden z-40">
-      {pieces.map((p) => (
-        <motion.div
-          key={p.id}
-          initial={{ y: -20, x: `${p.x}vw`, opacity: 1, rotate: 0 }}
-          animate={{ y: "100vh", opacity: 0, rotate: p.rotation + 720 }}
-          transition={{ duration: p.duration, delay: p.delay, ease: "easeIn" }}
-          className={`absolute ${p.color} rounded-sm`}
-          style={{ width: p.size, height: p.size }}
-        />
-      ))}
-    </div>
+    <motion.div
+      initial={{ opacity: 1, y: 0, x: 0, scale: 1, rotate: 0 }}
+      animate={{
+        opacity: [1, 1, 0],
+        y: [0, -(80 + Math.random() * 120), 60 + Math.random() * 80],
+        x: [0, x * (0.5 + Math.random()), x * (0.8 + Math.random() * 0.5)],
+        scale: [1, 1.3, 0.3],
+        rotate: [0, rotate],
+      }}
+      transition={{ duration: 1.4 + Math.random() * 0.6, delay, ease: "easeOut" }}
+      className="absolute rounded-sm pointer-events-none"
+      style={{
+        width: size,
+        height: size * (0.6 + Math.random() * 0.8),
+        background: color,
+        boxShadow: `0 0 4px ${color}`,
+        top: "50%",
+        left: "50%",
+      }}
+    />
   );
 };
 
-/* ── Room Flow ─────────────────────────────────────────────────────────── */
-
-const RoomFlow = ({ room, onStart }: { room: ReturnType<typeof useGameRoom>; onStart: () => void }) => {
-  const [joinCode, setJoinCode] = useState("");
-  const [copied, setCopied] = useState(false);
-  const minPlayers = 3;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(room.roomCode || "");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="flex items-center justify-center h-full p-4">
-      <div className="w-full max-w-md">
-        <AnimatePresence mode="wait">
-          {room.phase === "name" && (
-            <motion.div key="name" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-5 p-6 rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm">
-              <div className="text-center">
-                <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">😂</span>
-                </div>
-                <h2 className="font-display text-xl font-bold text-foreground mb-1">What Do You Meme</h2>
-                <p className="text-sm font-body text-muted-foreground">Enter your display name</p>
-              </div>
-              <input type="text" placeholder="Your name..." value={room.playerName} onChange={(e) => room.setPlayerName(e.target.value)} maxLength={20} className="w-full py-3 px-4 rounded-xl bg-secondary border border-border/50 font-body text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all text-center text-lg" autoFocus onKeyDown={(e) => { if (e.key === "Enter" && room.playerName.trim()) room.setPhase("choose"); }} />
-              <button disabled={!room.playerName.trim()} onClick={() => room.setPhase("choose")} className="w-full py-3 rounded-lg bg-primary text-primary-foreground font-display font-semibold text-sm hover:opacity-90 transition-opacity shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Continue</button>
-            </motion.div>
-          )}
-          {room.phase === "choose" && (
-            <motion.div key="choose" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-3 p-6 rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm">
-              <p className="text-center text-sm font-body text-muted-foreground mb-2">Welcome, <span className="text-foreground font-medium">{room.playerName}</span></p>
-              <button onClick={() => room.createRoom()} className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-secondary/50 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 group">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:shadow-glow transition-shadow"><Plus className="w-5 h-5 text-primary" /></div>
-                <div className="text-left"><p className="font-display font-semibold text-foreground">Create Room</p><p className="text-xs font-body text-muted-foreground">Generate a code to share (3-8 players)</p></div>
-              </button>
-              <button onClick={() => room.setPhase("join")} className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-secondary/50 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 group">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:shadow-glow transition-shadow"><DoorOpen className="w-5 h-5 text-primary" /></div>
-                <div className="text-left"><p className="font-display font-semibold text-foreground">Join Room</p><p className="text-xs font-body text-muted-foreground">Enter a code to join</p></div>
-              </button>
-              {room.error && <p className="text-xs text-destructive text-center font-body">{room.error}</p>}
-            </motion.div>
-          )}
-          {room.phase === "join" && (
-            <motion.div key="join" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-5 p-6 rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm">
-              <div className="text-center">
-                <p className="text-sm font-body text-muted-foreground mb-3">Enter the room code</p>
-                <input type="text" placeholder="Room code..." value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} maxLength={6} className="w-full py-3 px-4 rounded-xl bg-secondary border border-border/50 font-display text-2xl font-bold text-foreground text-center tracking-widest focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all" autoFocus />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => { room.setPhase("choose"); setJoinCode(""); }} className="flex-1 py-2.5 rounded-lg border border-border/50 text-sm font-display font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">Back</button>
-                <button disabled={joinCode.length < 4} onClick={() => room.joinRoom(joinCode)} className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-display font-semibold hover:opacity-90 transition-opacity shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Join</button>
-              </div>
-              {room.error && <p className="text-xs text-destructive text-center font-body">{room.error}</p>}
-            </motion.div>
-          )}
-          {room.phase === "lobby" && (
-            <motion.div key="lobby" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-5 p-6 rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm">
-              {room.isHost && room.roomCode && (
-                <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-secondary/50 border border-border/30">
-                  <span className="text-xs font-body text-muted-foreground">Room Code:</span>
-                  <span className="font-display font-bold text-foreground tracking-widest">{room.roomCode}</span>
-                  <button onClick={handleCopy} className="w-7 h-7 rounded-md bg-secondary border border-border/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all">{copied ? <Check className="w-3 h-3 text-primary" /> : <Copy className="w-3 h-3" />}</button>
-                </div>
-              )}
-              <div>
-                <div className="flex items-center justify-between mb-3"><div className="flex items-center gap-1.5"><Users className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-display font-medium text-foreground">Players</span></div><span className="text-xs font-body text-muted-foreground">{room.players.length} / {minPlayers} min</span></div>
-                <div className="space-y-2">
-                  {room.players.map((player, i) => (
-                    <motion.div key={player.id || i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 border border-border/30">
-                      <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">{i === 0 ? <Crown className="w-4 h-4 text-primary" /> : <User className="w-4 h-4 text-muted-foreground" />}</div>
-                      <div className="flex-1"><p className="text-sm font-display font-medium text-foreground">{player.name}</p>{i === 0 && <p className="text-[10px] font-body text-primary">Host</p>}</div>
-                      <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    </motion.div>
-                  ))}
-                  {Array.from({ length: Math.max(0, minPlayers - room.players.length) }).map((_, i) => (
-                    <div key={`empty-${i}`} className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-border/30"><div className="w-9 h-9 rounded-lg bg-secondary/30 border border-border/20 flex items-center justify-center"><User className="w-4 h-4 text-muted-foreground/30" /></div><p className="text-sm font-body text-muted-foreground/40">Waiting...</p></div>
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={room.leaveRoom} className="flex-1 py-2.5 rounded-lg border border-border/50 text-sm font-display font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-all">Leave</button>
-                {room.isHost ? (
-                  <button disabled={room.players.length < minPlayers} onClick={onStart} className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-display font-semibold hover:opacity-90 transition-opacity shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Start Game</button>
-                ) : (
-                  <div className="flex-1 py-2.5 rounded-lg bg-secondary border border-border/30 text-sm font-display font-medium text-muted-foreground text-center">Waiting for host...</div>
-                )}
-              </div>
-              {room.error && <p className="text-xs text-destructive text-center font-body">{room.error}</p>}
-            </motion.div>
-          )}
-        </AnimatePresence>
+/* ─── Card Back (gold geometric pattern) ─── */
+const CardBack = ({ width, height }: { width: string; height: string }) => (
+  <div
+    className={`${width} ${height} rounded-2xl overflow-hidden relative`}
+    style={{
+      background: "#0d0d1a",
+      boxShadow: "0 8px 32px -8px rgba(0,0,0,0.7)",
+      border: "1.5px solid hsl(38 70% 40% / 0.5)",
+    }}
+  >
+    {/* Geometric pattern */}
+    <div className="absolute inset-0 opacity-[0.12]" style={{
+      backgroundImage: `
+        linear-gradient(45deg, hsl(38 80% 50%) 25%, transparent 25%),
+        linear-gradient(-45deg, hsl(38 80% 50%) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, hsl(38 80% 50%) 75%),
+        linear-gradient(-45deg, transparent 75%, hsl(38 80% 50%) 75%)
+      `,
+      backgroundSize: "20px 20px",
+      backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
+    }} />
+    {/* Diamond overlay */}
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div className="w-16 h-16 rotate-45 border border-[hsl(38_70%_50%/0.3)] flex items-center justify-center">
+        <div className="w-10 h-10 border border-[hsl(38_70%_50%/0.2)] flex items-center justify-center">
+          <div className="w-4 h-4 bg-[hsl(38_70%_50%/0.15)]" />
+        </div>
       </div>
     </div>
-  );
-};
+    {/* WDYMeme logo */}
+    <div className="absolute inset-0 flex items-center justify-center">
+      <span
+        className="text-[8px] font-bold tracking-[0.15em] uppercase -rotate-45 opacity-60"
+        style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 80% 55%)" }}
+      >
+        WDYM
+      </span>
+    </div>
+    {/* Inner glow */}
+    <div className="absolute inset-0 rounded-2xl" style={{
+      boxShadow: "inset 0 0 20px hsl(38 92% 55% / 0.08)",
+    }} />
+  </div>
+);
 
-/* ── Scoreboard Sidebar ────────────────────────────────────────────────── */
-
-const ScoreSidebar = ({ players, judgeId, winScore }: { players: PlayerScore[]; judgeId: string; winScore: number }) => (
-  <div className="p-3">
-    <h3 className="text-xs font-display font-semibold text-muted-foreground uppercase tracking-wider mb-1">Scoreboard</h3>
-    <p className="text-[10px] font-body text-muted-foreground mb-3">First to {winScore} wins</p>
-    <div className="space-y-2">
-      {[...players].sort((a, b) => b.score - a.score).map((p) => (
-        <div key={p.id} className={`flex items-center gap-2 p-2 rounded-lg ${p.id === judgeId ? "bg-primary/10 border border-primary/20" : "bg-secondary/30"}`}>
-          <div className="flex items-center gap-1 flex-1 min-w-0">
-            {p.id === judgeId && <Crown className="w-3 h-3 text-primary shrink-0" />}
-            <span className="text-xs font-display font-medium text-foreground truncate">{p.name}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            {Array.from({ length: winScore }).map((_, i) => (
-              <div
-                key={i}
-                className={`w-2.5 h-2.5 rounded-full ${i < p.score ? "bg-primary" : "bg-secondary border border-border/30"}`}
-              />
-            ))}
-          </div>
-          <span className="text-xs font-display font-bold text-foreground w-4 text-right">{p.score}</span>
-        </div>
-      ))}
+/* ─── Card Face (for reveal) ─── */
+const CardFaceContent = ({ caption, player }: { caption: string; player: string }) => (
+  <div className="relative flex flex-col h-full p-3 md:p-3.5">
+    <div className="text-center mb-auto">
+      <span
+        className="text-[7px] md:text-[8px] font-bold tracking-[0.2em] uppercase"
+        style={{ color: "hsl(38 80% 55%)", fontFamily: "'JetBrains Mono', monospace" }}
+      >
+        What Do You Meme
+      </span>
+      <div className="mx-auto mt-1 w-8 h-[1px]" style={{
+        background: "linear-gradient(90deg, transparent, hsl(38 70% 50% / 0.4), transparent)",
+      }} />
+    </div>
+    <div className="flex-1 flex items-center justify-center px-1">
+      <p
+        className="text-center text-[11px] md:text-xs font-bold leading-snug"
+        style={{ fontFamily: "'JetBrains Mono', monospace", color: "#f0ece4", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
+      >
+        {caption}
+      </p>
+    </div>
+    <div className="flex items-end justify-between mt-auto">
+      <span className="text-[9px] font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 70% 50% / 0.6)" }}>
+        {player}
+      </span>
+      <span className="text-[7px] tracking-wider uppercase" style={{ color: "hsl(38 70% 50% / 0.3)", fontFamily: "'JetBrains Mono', monospace" }}>
+        CAPTION
+      </span>
     </div>
   </div>
 );
 
-/* ── Main Game Component ───────────────────────────────────────────────── */
-
-const MemeGame = () => {
-  const [hand, setHand] = useState<CaptionCard[]>([]);
-  const [currentMeme, setCurrentMeme] = useState<MemeTemplate | null>(null);
-  const [phase, setPhase] = useState<string>("submitting");
-  const [round, setRound] = useState(1);
-  const [judge, setJudge] = useState<{ id: string; name: string } | null>(null);
-  const [players, setPlayers] = useState<PlayerScore[]>([]);
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [submissionCount, setSubmissionCount] = useState(0);
-  const [totalExpected, setTotalExpected] = useState(0);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
-  const [selectedCard, setSelectedCard] = useState<number | null>(null);
-  const [roundWinner, setRoundWinner] = useState<Submission | null>(null);
-  const [gameWinner, setGameWinner] = useState<PlayerScore | null>(null);
+/* ─── Reveal Card (3D flip) ─── */
+const RevealCard = ({
+  caption,
+  player,
+  isFlipped,
+  isWinner,
+  isLoser,
+  onClick,
+  dealDelay,
+}: {
+  caption: string;
+  player: string;
+  isFlipped: boolean;
+  isWinner: boolean;
+  isLoser: boolean;
+  onClick: () => void;
+  dealDelay: number;
+}) => {
   const [showConfetti, setShowConfetti] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [memeError, setMemeError] = useState(false);
-  const winScore = 5;
-
-  const room = useGameRoom({
-    gameType: "meme",
-    onGameInit: async (roomId, roomPlayers) => {
-      await memeApi.init(roomId, roomPlayers);
-    },
-  });
-
-  const isJudge = judge?.id === room.playerId;
-
-  // Fetch initial state
-  const fetchState = useCallback(async () => {
-    if (!room.roomId || !room.playerId) return;
-    try {
-      const data = await memeApi.state(room.roomId, room.playerId);
-      if (data.yourHand) setHand(data.yourHand);
-      if (data.currentMeme) { setCurrentMeme(data.currentMeme); setMemeError(false); }
-      if (data.phase) setPhase(data.phase);
-      if (data.round) setRound(data.round);
-      if (data.judge) setJudge(data.judge);
-      if (data.players) setPlayers(data.players);
-      if (data.submissionCount !== undefined) setSubmissionCount(data.submissionCount);
-      if (data.totalExpected !== undefined) setTotalExpected(data.totalExpected);
-      if (data.hasSubmitted !== undefined) setHasSubmitted(data.hasSubmitted);
-      if (data.submissions) setSubmissions(data.submissions);
-      if (data.roundWinner) setRoundWinner(data.roundWinner);
-      if (data.extra_state?.winner) setGameWinner(data.extra_state.winner);
-    } catch {}
-  }, [room.roomId, room.playerId]);
 
   useEffect(() => {
-    if (room.phase === "playing") fetchState();
-  }, [room.phase, fetchState]);
-
-  // Realtime updates
-  useEffect(() => {
-    if (!room.gameState || !room.playerId) return;
-    const bs = room.gameState;
-    const extra = room.extraState;
-
-    if (bs.hands?.[room.playerId]) setHand(bs.hands[room.playerId]);
-    if (bs.currentMeme) { setCurrentMeme(bs.currentMeme); setMemeError(false); }
-    if (bs.phase) setPhase(bs.phase);
-    if (bs.round) setRound(bs.round);
-    if (bs.players) {
-      setPlayers(bs.players.map((p: any) => ({ id: p.id, name: p.name, score: p.score })));
-      const j = bs.players[bs.judgeIndex];
-      if (j) setJudge(j);
+    if (isWinner && isFlipped) {
+      const t = setTimeout(() => setShowConfetti(true), 300);
+      return () => clearTimeout(t);
     }
-    if (bs.submissions !== undefined) {
-      setSubmissionCount(bs.submissions.length);
-      setTotalExpected(bs.players.length - 1);
-      setHasSubmitted(bs.submissions.some((s: any) => s.playerId === room.playerId));
-    }
+  }, [isWinner, isFlipped]);
 
-    if (extra?.phase === "judging") {
-      setPhase("judging");
-      // Fetch to get judge's view of submissions
-      fetchState();
-    }
-    if (extra?.phase === "results") {
-      setPhase("results");
-      if (extra.roundWinner) setRoundWinner(extra.roundWinner);
-      if (extra.winner) setGameWinner(extra.winner);
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 3000);
-      fetchState();
-    }
-    if (extra?.phase === "submitting") {
-      setPhase("submitting");
-      setHasSubmitted(false);
-      setSelectedCard(null);
-      setRoundWinner(null);
-      setSubmissions([]);
-      fetchState();
-    }
-  }, [room.gameState, room.extraState, room.playerId, fetchState]);
-
-  const handleSubmitCaption = useCallback(async () => {
-    if (!room.roomId || !room.playerId || selectedCard === null || loading) return;
-    const card = hand[selectedCard];
-    if (!card) return;
-    setLoading(true);
-    try {
-      const res = await memeApi.submitCaption(room.roomId, room.playerId, card.id);
-      if (res.yourHand) setHand(res.yourHand);
-      setHasSubmitted(true);
-      setSelectedCard(null);
-      if (res.submissionCount !== undefined) setSubmissionCount(res.submissionCount);
-      if (res.phase) setPhase(res.phase);
-    } catch (err: any) {
-      room.setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [room.roomId, room.playerId, selectedCard, hand, loading]);
-
-  const handleJudgePick = useCallback(async (index: number) => {
-    if (!room.roomId || !room.playerId || loading) return;
-    setLoading(true);
-    try {
-      const res = await memeApi.judgePick(room.roomId, room.playerId, index);
-      if (res.roundWinner) setRoundWinner(res.roundWinner);
-      if (res.scores) setPlayers(res.scores);
-      if (res.gameWinner) setGameWinner(res.gameWinner);
-      if (res.allSubmissions) setSubmissions(res.allSubmissions);
-      setPhase("results");
-      setShowConfetti(true);
-      setTimeout(() => setShowConfetti(false), 3000);
-    } catch (err: any) {
-      room.setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [room.roomId, room.playerId, loading]);
-
-  const handleNextRound = useCallback(async () => {
-    if (!room.roomId || !room.playerId || loading) return;
-    setLoading(true);
-    try {
-      const res = await memeApi.nextRound(room.roomId, room.playerId);
-      if (res.currentMeme) { setCurrentMeme(res.currentMeme); setMemeError(false); }
-      if (res.judge) setJudge(res.judge);
-      if (res.round) setRound(res.round);
-      if (res.scores) setPlayers(res.scores);
-      setPhase("submitting");
-      setHasSubmitted(false);
-      setSelectedCard(null);
-      setRoundWinner(null);
-      setSubmissions([]);
-    } catch (err: any) {
-      room.setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [room.roomId, room.playerId, loading]);
-
-  const sidebar = room.phase === "playing" ? (
-    <ScoreSidebar players={players} judgeId={judge?.id || ""} winScore={winScore} />
-  ) : undefined;
-
-  if (room.phase !== "playing") {
-    return (
-      <GameLayout title="What Do You Meme" forceVideoPanel>
-        <RoomFlow room={room} onStart={room.startGame} />
-      </GameLayout>
-    );
-  }
+  const confettiParticles = Array.from({ length: 40 }, (_, i) => ({
+    id: i,
+    delay: Math.random() * 0.3,
+    x: (Math.random() - 0.5) * 200,
+  }));
 
   return (
-    <GameLayout title="What Do You Meme" forceVideoPanel sidebar={sidebar}>
-      <div className="flex flex-col h-full relative">
-        {/* Confetti */}
-        <AnimatePresence>
-          {showConfetti && <Confetti />}
-        </AnimatePresence>
+    <motion.div
+      initial={{ opacity: 0, y: 40, scale: 0.8 }}
+      animate={{
+        opacity: isLoser ? 0.3 : 1,
+        y: 0,
+        scale: isWinner && isFlipped ? 1.1 : isLoser ? 0.92 : 1,
+      }}
+      transition={{ delay: dealDelay, type: "spring", stiffness: 200, damping: 18 }}
+      onClick={onClick}
+      className="relative cursor-pointer"
+      style={{ perspective: 800 }}
+    >
+      {/* Confetti container */}
+      {showConfetti && (
+        <div className="absolute inset-0 z-50 pointer-events-none overflow-visible">
+          {confettiParticles.map((p) => (
+            <ConfettiParticle key={p.id} delay={p.delay} x={p.x} />
+          ))}
+        </div>
+      )}
 
-        {/* Game winner overlay */}
-        <AnimatePresence>
-          {gameWinner && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-              <motion.div initial={{ scale: 0.5 }} animate={{ scale: 1 }} className="p-10 rounded-2xl border border-primary/50 bg-card text-center shadow-2xl">
-                <Trophy className="w-16 h-16 text-primary mx-auto mb-4" />
-                <h2 className="font-display text-2xl font-bold text-foreground mb-2">
-                  {gameWinner.id === room.playerId ? "You Win the Game!" : `${gameWinner.name} Wins the Game!`}
-                </h2>
-                <p className="text-sm font-body text-muted-foreground">First to {winScore} points</p>
-              </motion.div>
+      {/* Winner glow ring */}
+      {isWinner && isFlipped && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: [0, 1, 0.6], scale: [0.8, 1.15, 1.05] }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="absolute -inset-3 rounded-3xl pointer-events-none z-10"
+          style={{
+            boxShadow: "0 0 40px hsl(38 92% 55% / 0.4), 0 0 80px hsl(38 92% 55% / 0.15)",
+            border: "2px solid hsl(38 92% 55% / 0.6)",
+          }}
+        />
+      )}
+
+      {/* 3D flip container */}
+      <motion.div
+        animate={{ rotateY: isFlipped ? 0 : 180 }}
+        transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+        style={{ transformStyle: "preserve-3d" }}
+        className="relative w-[130px] md:w-[150px] h-[180px] md:h-[210px]"
+      >
+        {/* Front face (caption) */}
+        <div
+          className="absolute inset-0 rounded-2xl overflow-hidden"
+          style={{
+            backfaceVisibility: "hidden",
+            background: "#0d0d1a",
+            border: isWinner && isFlipped
+              ? "2px solid hsl(38 92% 55%)"
+              : "1.5px solid hsl(38 70% 40% / 0.5)",
+            boxShadow: isWinner && isFlipped
+              ? "0 0 30px hsl(38 92% 55% / 0.3)"
+              : "0 8px 32px -8px rgba(0,0,0,0.7)",
+          }}
+        >
+          {/* Linen texture */}
+          <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='6' height='6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h1v1H0zM3 3h1v1H3z' fill='%23fff' fill-opacity='0.4'/%3E%3C/svg%3E")`,
+            backgroundSize: "6px 6px",
+          }} />
+          <CardFaceContent caption={caption} player={player} />
+
+          {/* Winner badge */}
+          {isWinner && isFlipped && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.4, type: "spring", stiffness: 400 }}
+              className="absolute -top-2 -right-2 z-20 w-8 h-8 rounded-full flex items-center justify-center"
+              style={{
+                background: "linear-gradient(135deg, hsl(38 92% 55%), hsl(28 85% 45%))",
+                boxShadow: "0 0 16px hsl(38 92% 55% / 0.5)",
+              }}
+            >
+              <span className="text-sm">👑</span>
             </motion.div>
           )}
-        </AnimatePresence>
+        </div>
 
-        {/* Top area - Meme + Phase content */}
-        <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-y-auto">
-          {/* Round info */}
-          <div className="flex items-center justify-between w-full max-w-lg mb-3">
-            <span className="text-xs font-display font-semibold text-primary uppercase tracking-wider">Round {round}</span>
-            <div className="flex items-center gap-2">
-              <Crown className="w-3 h-3 text-primary" />
-              <span className="text-xs font-body text-muted-foreground">Judge: {judge?.name || "?"}</span>
+        {/* Back face */}
+        <div
+          className="absolute inset-0"
+          style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+        >
+          <CardBack width="w-full" height="h-full" />
+          {/* "Tap to reveal" hint */}
+          {!isFlipped && (
+            <div className="absolute inset-0 flex items-end justify-center pb-3 pointer-events-none">
+              <motion.span
+                animate={{ opacity: [0.3, 0.7, 0.3] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="text-[8px] font-bold tracking-widest uppercase"
+                style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 80% 55% / 0.6)" }}
+              >
+                TAP TO REVEAL
+              </motion.span>
             </div>
-          </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
-          {/* Meme Image */}
-          <div className="w-full max-w-lg">
-            <div className="relative rounded-xl border-2 border-border/30 overflow-hidden shadow-card-hover bg-secondary">
-              {currentMeme && !memeError ? (
-                <img
-                  src={`https://i.imgflip.com/${currentMeme.id}.jpg`}
-                  alt={currentMeme.name}
-                  className="w-full max-h-[300px] object-contain bg-black"
-                  onError={() => setMemeError(true)}
-                />
-              ) : (
-                <div className="aspect-video flex items-center justify-center bg-gradient-to-br from-secondary to-secondary/60">
-                  <div className="text-center p-6">
-                    <span className="text-6xl mb-4 block">😂</span>
-                    <p className="font-display text-lg font-bold text-foreground">{currentMeme?.name || "Meme Image"}</p>
-                  </div>
-                </div>
-              )}
-              <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-sm">
-                <span className="text-[10px] font-display font-semibold text-primary">{currentMeme?.name || "MEME"}</span>
-              </div>
+/* ─── Hand Card (player's hand) ─── */
+const MemeCard = ({
+  caption,
+  index,
+  isSelected,
+  onClick,
+  totalCards,
+}: {
+  caption: string;
+  index: number;
+  isSelected: boolean;
+  onClick: () => void;
+  totalCards: number;
+}) => {
+  const mid = (totalCards - 1) / 2;
+  const offset = index - mid;
+  const rotation = offset * 3;
+  const xShift = offset * 4;
+
+  return (
+    <motion.div
+      onClick={onClick}
+      initial={{ rotateY: 180, opacity: 0 }}
+      animate={{
+        rotateY: 0,
+        opacity: 1,
+        y: isSelected ? -28 : 0,
+        rotate: isSelected ? 0 : rotation,
+        x: xShift,
+        scale: isSelected ? 1.08 : 1,
+      }}
+      whileHover={{ y: -18, scale: 1.05, rotate: 0 }}
+      transition={{ type: "spring", stiffness: 300, damping: 22 }}
+      style={{ perspective: 800, transformStyle: "preserve-3d" }}
+      className="shrink-0 cursor-pointer relative"
+    >
+      <div
+        className={`relative w-[120px] md:w-[140px] h-[170px] md:h-[195px] rounded-2xl overflow-hidden transition-shadow duration-300 ${
+          isSelected ? "shadow-[0_0_30px_-4px_hsl(38_92%_55%/0.5)]" : "shadow-[0_8px_32px_-8px_rgba(0,0,0,0.7)]"
+        }`}
+        style={{ background: "#0d0d1a" }}
+      >
+        <div
+          className="absolute inset-0 rounded-2xl pointer-events-none"
+          style={{
+            border: isSelected ? "2px solid hsl(38 92% 55%)" : "1.5px solid hsl(38 70% 40% / 0.5)",
+            boxShadow: isSelected
+              ? "inset 0 0 20px hsl(38 92% 55% / 0.15), 0 0 20px hsl(38 92% 55% / 0.3)"
+              : "inset 0 0 12px hsl(38 92% 55% / 0.06)",
+          }}
+        />
+        <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='6' height='6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h1v1H0zM3 3h1v1H3z' fill='%23fff' fill-opacity='0.4'/%3E%3C/svg%3E")`,
+          backgroundSize: "6px 6px",
+        }} />
+        <div className="relative flex flex-col h-full p-3 md:p-3.5">
+          <div className="text-center mb-auto">
+            <span className="text-[7px] md:text-[8px] font-bold tracking-[0.2em] uppercase" style={{ color: "hsl(38 80% 55%)", fontFamily: "'JetBrains Mono', monospace" }}>
+              What Do You Meme
+            </span>
+            <div className="mx-auto mt-1 w-8 h-[1px]" style={{ background: "linear-gradient(90deg, transparent, hsl(38 70% 50% / 0.4), transparent)" }} />
+          </div>
+          <div className="flex-1 flex items-center justify-center px-1">
+            <p className="text-center text-[11px] md:text-xs font-bold leading-snug" style={{ fontFamily: "'JetBrains Mono', monospace", color: "#f0ece4", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>
+              {caption}
+            </p>
+          </div>
+          <div className="flex items-end justify-between mt-auto">
+            <span className="text-[9px] font-bold" style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 70% 50% / 0.6)" }}>
+              #{String(index + 1).padStart(2, "0")}
+            </span>
+            <span className="text-[7px] tracking-wider uppercase" style={{ color: "hsl(38 70% 50% / 0.3)", fontFamily: "'JetBrains Mono', monospace" }}>
+              CAPTION
+            </span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+/* ─── Rank Badge ─── */
+const RankBadge = ({ rank }: { rank: number }) => {
+  if (rank === 0) return <Crown className="w-4 h-4" style={{ color: "hsl(38 92% 55%)" }} />;
+  if (rank === 1) return <Award className="w-4 h-4" style={{ color: "hsl(0 0% 75%)" }} />;
+  if (rank === 2) return <Medal className="w-4 h-4" style={{ color: "hsl(25 60% 45%)" }} />;
+  return <span className="text-[10px] font-bold" style={{ color: "hsl(38 70% 50% / 0.4)", fontFamily: "'JetBrains Mono', monospace" }}>#{rank + 1}</span>;
+};
+
+/* ─── Judge Ranking Item ─── */
+const JudgeRankItem = ({
+  entry,
+  rank,
+}: {
+  entry: { player: string; caption: string };
+  rank: number;
+}) => {
+  const isFirst = rank === 0;
+
+  return (
+    <Reorder.Item
+      value={entry}
+      dragListener
+      className={`flex items-center gap-3 rounded-xl px-4 py-3 cursor-grab active:cursor-grabbing transition-all duration-200 ${
+        isFirst ? "shadow-[0_0_24px_-6px_hsl(38_92%_55%/0.3)]" : ""
+      }`}
+      style={{
+        background: isFirst ? "hsl(240 10% 12%)" : "hsl(240 10% 9%)",
+        border: isFirst ? "1.5px solid hsl(38 70% 50% / 0.4)" : "1px solid hsl(240 8% 18% / 0.5)",
+      }}
+      whileDrag={{
+        scale: 1.03,
+        boxShadow: "0 12px 40px -8px hsl(38 92% 55% / 0.25)",
+        zIndex: 50,
+      }}
+      layout
+      transition={{ type: "spring", stiffness: 350, damping: 28 }}
+    >
+      {/* Drag handle */}
+      <GripVertical className="w-4 h-4 shrink-0 opacity-30" />
+
+      {/* Rank badge */}
+      <div className="w-6 flex items-center justify-center shrink-0">
+        <RankBadge rank={rank} />
+      </div>
+
+      {/* Caption */}
+      <div className="flex-1 min-w-0">
+        <p
+          className="text-xs font-bold leading-snug truncate"
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            color: isFirst ? "#f0ece4" : "hsl(40 15% 70%)",
+          }}
+        >
+          {entry.caption}
+        </p>
+        <p className="text-[9px] mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 70% 50% / 0.4)" }}>
+          {entry.player}
+        </p>
+      </div>
+
+      {/* Position indicator */}
+      {isFirst && (
+        <motion.div
+          animate={{ scale: [1, 1.15, 1] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="text-sm"
+        >
+          👑
+        </motion.div>
+      )}
+    </Reorder.Item>
+  );
+};
+
+/* ─── Main Game ─── */
+type Phase = "picking" | "reveal" | "judging" | "winner";
+
+const MemeGame = () => {
+  const [selectedCard, setSelectedCard] = useState<number | null>(null);
+  const [phase, setPhase] = useState<Phase>("picking");
+  const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
+  const [winnerRevealed, setWinnerRevealed] = useState(false);
+  const [rankedCaptions, setRankedCaptions] = useState<typeof submittedCaptions>([]);
+
+  const revealCaptions = submittedCaptions.map((s, i) => ({
+    ...s,
+    caption: i === 3 && selectedCard !== null ? captionCards[selectedCard] : s.caption,
+  }));
+
+  const handleSubmit = useCallback(() => {
+    if (selectedCard !== null) {
+      playCardShuffle();
+      setPhase("reveal");
+    }
+  }, [selectedCard]);
+
+  const handleFlip = useCallback((index: number) => {
+    if (phase !== "reveal") return;
+    if (flippedCards.has(index)) return;
+
+    playCardFlip();
+
+    setFlippedCards((prev) => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
+
+    // When all flipped → transition to judging phase
+    if (flippedCards.size + 1 === revealCaptions.length) {
+      setTimeout(() => {
+        setRankedCaptions([...revealCaptions]);
+        setPhase("judging");
+      }, 800);
+    }
+  }, [phase, flippedCards, revealCaptions]);
+
+  const handleCrownWinner = () => {
+    playVictoryFanfare();
+    setPhase("winner");
+    setWinnerRevealed(true);
+  };
+
+  const handleNextRound = () => {
+    setSelectedCard(null);
+    setPhase("picking");
+    setFlippedCards(new Set());
+    setWinnerRevealed(false);
+    setRankedCaptions([]);
+  };
+
+  // The winner is always rank 0 in the judge's ordering
+  const winnerEntry = rankedCaptions[0];
+
+  return (
+    <GameLayout title="What Do You Meme" forceVideoPanel>
+      <div className="flex flex-col h-full">
+        {/* Top content area */}
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-display font-semibold text-primary uppercase tracking-wider">
+                Round 3 of 10
+              </span>
+              <span className="text-xs font-body text-muted-foreground">Judge: Alex</span>
             </div>
-          </div>
 
-          {/* Phase-specific content */}
-          <div className="w-full max-w-lg mt-4">
             <AnimatePresence mode="wait">
-              {/* SUBMITTING PHASE */}
-              {phase === "submitting" && (
-                <motion.div key="submitting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  {isJudge ? (
-                    <div className="text-center py-6">
-                      <Crown className="w-10 h-10 text-primary mx-auto mb-3" />
-                      <h3 className="font-display text-lg font-bold text-foreground mb-1">You are the Judge</h3>
-                      <p className="text-sm font-body text-muted-foreground mb-3">Waiting for players to submit captions...</p>
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-32 h-2 rounded-full bg-secondary overflow-hidden">
-                          <motion.div
-                            className="h-full bg-primary rounded-full"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${totalExpected > 0 ? (submissionCount / totalExpected) * 100 : 0}%` }}
-                            transition={{ duration: 0.5 }}
-                          />
-                        </div>
-                        <span className="text-xs font-body text-muted-foreground">{submissionCount}/{totalExpected}</span>
+              {/* PICKING PHASE */}
+              {phase === "picking" && (
+                <motion.div key="meme" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <div className="relative rounded-xl border-2 border-border/30 overflow-hidden shadow-card-hover bg-secondary">
+                    <div className="aspect-square flex items-center justify-center bg-gradient-to-br from-secondary to-secondary/60">
+                      <div className="text-center p-6">
+                        <span className="text-6xl mb-4 block">😂</span>
+                        <p className="font-display text-lg font-bold text-foreground">Meme Image</p>
+                        <p className="text-xs font-body text-muted-foreground mt-1">The meme image would appear here</p>
                       </div>
                     </div>
-                  ) : hasSubmitted ? (
-                    <div className="text-center py-6">
-                      <Sparkles className="w-10 h-10 text-primary mx-auto mb-3" />
-                      <h3 className="font-display text-lg font-bold text-foreground mb-1">Caption Submitted!</h3>
-                      <p className="text-sm font-body text-muted-foreground">Waiting for others... ({submissionCount}/{totalExpected})</p>
+                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+                      <span className="text-[10px] font-display font-semibold text-primary">MEME</span>
                     </div>
-                  ) : null}
+                  </div>
                 </motion.div>
               )}
 
-              {/* JUDGING PHASE */}
+              {/* REVEAL PHASE */}
+              {phase === "reveal" && (
+                <motion.div key="reveal" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                  <div className="text-center mb-4">
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-sm font-bold tracking-[0.15em] uppercase"
+                      style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 80% 55%)" }}
+                    >
+                      JUDGE IS REVEALING...
+                    </motion.p>
+                    <p className="text-[10px] mt-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 70% 50% / 0.4)" }}>
+                      Tap each card to flip
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-3 flex-wrap">
+                    {revealCaptions.map((entry, i) => (
+                      <RevealCard
+                        key={i}
+                        caption={entry.caption}
+                        player={entry.player}
+                        isFlipped={flippedCards.has(i)}
+                        isWinner={false}
+                        isLoser={false}
+                        onClick={() => handleFlip(i)}
+                        dealDelay={i * 0.15}
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* JUDGING PHASE — drag-to-rank */}
               {phase === "judging" && (
-                <motion.div key="judging" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  {isJudge ? (
-                    <div>
-                      <p className="text-center text-sm font-display font-semibold text-primary uppercase tracking-wider mb-4">Pick the funniest caption</p>
-                      <div className="space-y-2">
-                        {submissions.map((sub, i) => (
-                          <motion.button
-                            key={i}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.1 }}
-                            onClick={() => handleJudgePick(sub.index ?? i)}
-                            className="w-full p-4 rounded-xl border border-border/30 bg-card hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
-                          >
-                            <p className="text-sm font-body text-foreground group-hover:text-primary transition-colors">{sub.caption}</p>
-                          </motion.button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-6">
-                      <Crown className="w-10 h-10 text-primary mx-auto mb-3 animate-pulse" />
-                      <h3 className="font-display text-lg font-bold text-foreground mb-1">Judge is Deciding...</h3>
-                      <p className="text-sm font-body text-muted-foreground">{judge?.name} is picking the funniest caption</p>
-                    </div>
-                  )}
+                <motion.div key="judging" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                  <div className="text-center mb-4">
+                    <motion.p
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="text-sm font-bold tracking-[0.15em] uppercase"
+                      style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 80% 55%)" }}
+                    >
+                      ⚖️ JUDGE'S RANKING
+                    </motion.p>
+                    <p className="text-[10px] mt-1" style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 70% 50% / 0.4)" }}>
+                      Drag to rank — funniest on top
+                    </p>
+                  </div>
+
+                  <Reorder.Group
+                    axis="y"
+                    values={rankedCaptions}
+                    onReorder={(newOrder) => {
+                      playCardFlip();
+                      setRankedCaptions(newOrder);
+                    }}
+                    className="flex flex-col gap-2"
+                  >
+                    {rankedCaptions.map((entry, i) => (
+                      <JudgeRankItem key={entry.player} entry={entry} rank={i} />
+                    ))}
+                  </Reorder.Group>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="flex justify-center mt-5"
+                  >
+                    <button
+                      onClick={handleCrownWinner}
+                      className="px-8 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-105 flex items-center gap-2"
+                      style={{
+                        background: "linear-gradient(135deg, hsl(38 92% 55%), hsl(28 85% 45%))",
+                        color: "#0d0d1a",
+                        boxShadow: "0 0 30px -6px hsl(38 92% 55% / 0.4)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      <Crown className="w-4 h-4" />
+                      CROWN THE WINNER
+                    </button>
+                  </motion.div>
                 </motion.div>
               )}
 
-              {/* RESULTS PHASE */}
-              {phase === "results" && (
-                <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  {roundWinner && (
-                    <div className="text-center py-4">
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", damping: 10, stiffness: 200 }}
-                      >
-                        <span className="text-4xl block mb-3">{"\uD83C\uDFC6"}</span>
-                        <h3 className="font-display text-lg font-bold text-foreground mb-1">
-                          {roundWinner.playerName || "Winner"} wins this round!
-                        </h3>
-                        <div className="p-4 rounded-xl bg-primary/10 border border-primary/30 mt-3 mb-4">
-                          <p className="text-sm font-body text-foreground font-medium italic">"{roundWinner.caption}"</p>
-                        </div>
-                      </motion.div>
+              {/* WINNER PHASE */}
+              {phase === "winner" && winnerEntry && (
+                <motion.div key="winner" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+                  <div className="text-center mb-5">
+                    <motion.div
+                      initial={{ scale: 0, rotate: -20 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 15, delay: 0.2 }}
+                      className="text-5xl mb-3"
+                    >
+                      🏆
+                    </motion.div>
+                    <motion.p
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="text-lg font-bold tracking-[0.1em] uppercase"
+                      style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 80% 55%)" }}
+                    >
+                      {winnerEntry.player} WINS!
+                    </motion.p>
+                  </div>
 
-                      {/* All submissions revealed */}
-                      {submissions.length > 0 && (
-                        <div className="space-y-1.5 mb-4">
-                          <p className="text-[10px] font-display text-muted-foreground uppercase tracking-wider mb-2">All Submissions</p>
-                          {submissions.map((sub, i) => (
-                            <div key={i} className={`flex items-center gap-2 p-2 rounded-lg text-left ${sub.playerId === roundWinner.playerId ? "bg-primary/10 border border-primary/20" : "bg-secondary/30"}`}>
-                              <span className="text-xs font-display font-medium text-muted-foreground w-16 truncate">{sub.playerName}</span>
-                              <span className="text-xs font-body text-foreground flex-1">"{sub.caption}"</span>
-                              {sub.playerId === roundWinner.playerId && <Trophy className="w-3 h-3 text-primary shrink-0" />}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {!gameWinner && (
-                        <button
-                          onClick={handleNextRound}
-                          disabled={loading}
-                          className="px-8 py-2.5 rounded-lg bg-primary text-primary-foreground font-display font-semibold text-sm hover:opacity-90 transition-opacity shadow-glow disabled:opacity-40"
-                        >
-                          {loading ? "Loading..." : "Next Round"}
-                        </button>
-                      )}
+                  {/* Winning card large */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="relative mx-auto rounded-2xl overflow-hidden p-5"
+                    style={{
+                      background: "#0d0d1a",
+                      border: "2px solid hsl(38 92% 55%)",
+                      boxShadow: "0 0 40px hsl(38 92% 55% / 0.3), 0 0 80px hsl(38 92% 55% / 0.1)",
+                      maxWidth: 280,
+                    }}
+                  >
+                    {/* Linen texture */}
+                    <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg width='6' height='6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h1v1H0zM3 3h1v1H3z' fill='%23fff' fill-opacity='0.4'/%3E%3C/svg%3E")`,
+                      backgroundSize: "6px 6px",
+                    }} />
+                    <div className="text-center mb-2">
+                      <span className="text-[8px] font-bold tracking-[0.2em] uppercase" style={{ color: "hsl(38 80% 55%)", fontFamily: "'JetBrains Mono', monospace" }}>
+                        What Do You Meme
+                      </span>
                     </div>
-                  )}
+                    <p className="text-center text-sm font-bold leading-snug relative" style={{ fontFamily: "'JetBrains Mono', monospace", color: "#f0ece4" }}>
+                      "{winnerEntry.caption}"
+                    </p>
+                    <p className="text-center text-[10px] mt-3" style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 70% 50% / 0.6)" }}>
+                      — {winnerEntry.player}
+                    </p>
+                    {/* Crown badge */}
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.8, type: "spring", stiffness: 400 }}
+                      className="absolute -top-3 -right-3 w-10 h-10 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "linear-gradient(135deg, hsl(38 92% 55%), hsl(28 85% 45%))",
+                        boxShadow: "0 0 20px hsl(38 92% 55% / 0.5)",
+                      }}
+                    >
+                      <span className="text-lg">👑</span>
+                    </motion.div>
+                  </motion.div>
+
+                  {/* Final ranking summary */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 1 }}
+                    className="mt-4 flex flex-col gap-1"
+                  >
+                    {rankedCaptions.slice(1).map((entry, i) => (
+                      <div
+                        key={entry.player}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg opacity-50"
+                        style={{ background: "hsl(240 10% 9%)", border: "1px solid hsl(240 8% 16% / 0.3)" }}
+                      >
+                        <RankBadge rank={i + 1} />
+                        <span className="text-[10px]" style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(40 15% 60%)" }}>
+                          {entry.player}: {entry.caption}
+                        </span>
+                      </div>
+                    ))}
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 1.4 }}
+                    className="flex justify-center mt-5"
+                  >
+                    <button
+                      onClick={handleNextRound}
+                      className="px-8 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-105"
+                      style={{
+                        background: "linear-gradient(135deg, hsl(38 92% 55%), hsl(28 85% 45%))",
+                        color: "#0d0d1a",
+                        boxShadow: "0 0 30px -6px hsl(38 92% 55% / 0.4)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      NEXT ROUND →
+                    </button>
+                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* Scores */}
+            <div className="flex items-center justify-center gap-4 mt-3">
+              {["You: 2", "Alex: 1", "Jordan: 3", "Casey: 2"].map((s) => (
+                <span key={s} className="text-[10px] font-body text-muted-foreground px-2 py-0.5 rounded-full bg-secondary border border-border/20">
+                  {s}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Bottom - Caption Cards (only during submitting phase for non-judges) */}
-        {phase === "submitting" && !isJudge && !hasSubmitted && (
-          <div className="border-t border-border/20 bg-card/30 p-4">
-            <p className="text-xs font-display font-semibold text-muted-foreground uppercase tracking-wider mb-3 text-center">
-              Pick your best caption
-            </p>
-            <div className="flex items-end justify-center gap-2 overflow-x-auto pb-2 px-2">
-              {hand.map((card, i) => (
-                <motion.div
-                  key={card.id}
-                  whileHover={{ y: -8 }}
-                  onClick={() => setSelectedCard(i === selectedCard ? null : i)}
-                  className={`shrink-0 w-28 md:w-32 h-36 md:h-40 rounded-xl p-3 cursor-pointer transition-all duration-200 flex flex-col justify-between ${
-                    selectedCard === i
-                      ? "bg-primary/15 border-2 border-primary shadow-glow -translate-y-2"
-                      : "bg-card border border-border/30 hover:border-border/60"
-                  }`}
-                >
-                  <p className="text-[11px] md:text-xs font-body font-medium text-foreground leading-tight">{card.text}</p>
-                  <div className="flex items-center justify-end">
-                    <span className="text-[9px] font-body text-muted-foreground">#{i + 1}</span>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+        {/* Caption Cards Hand - Bottom (only during picking phase) */}
+        <AnimatePresence>
+          {phase === "picking" && (
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              className="border-t p-4 pb-6"
+              style={{
+                borderColor: "hsl(38 70% 40% / 0.15)",
+                background: "linear-gradient(180deg, hsl(240 12% 7%) 0%, hsl(240 15% 5%) 100%)",
+              }}
+            >
+              <p
+                className="text-[10px] font-bold uppercase tracking-[0.25em] mb-4 text-center"
+                style={{ fontFamily: "'JetBrains Mono', monospace", color: "hsl(38 70% 50% / 0.5)" }}
+              >
+                Pick your best caption
+              </p>
 
-            <AnimatePresence>
-              {selectedCard !== null && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="flex justify-center mt-3">
-                  <button
-                    onClick={handleSubmitCaption}
-                    disabled={loading}
-                    className="px-8 py-2.5 rounded-lg bg-primary text-primary-foreground font-display font-semibold text-sm hover:opacity-90 transition-opacity shadow-glow disabled:opacity-40"
+              <div className="flex items-end justify-center gap-1 md:gap-1.5 overflow-x-auto pb-2 px-4">
+                {captionCards.map((caption, i) => (
+                  <MemeCard
+                    key={i}
+                    caption={caption}
+                    index={i}
+                    isSelected={selectedCard === i}
+                    onClick={() => setSelectedCard(i === selectedCard ? null : i)}
+                    totalCards={captionCards.length}
+                  />
+                ))}
+              </div>
+
+              <AnimatePresence>
+                {selectedCard !== null && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="flex justify-center mt-4"
                   >
-                    {loading ? "Submitting..." : "Submit Caption"}
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {room.error && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30">
-            <p className="text-xs text-destructive bg-card/90 px-3 py-1 rounded-full border border-destructive/30">{room.error}</p>
-          </div>
-        )}
+                    <button
+                      onClick={handleSubmit}
+                      className="px-10 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-105"
+                      style={{
+                        background: "linear-gradient(135deg, hsl(38 92% 55%), hsl(28 85% 45%))",
+                        color: "#0d0d1a",
+                        boxShadow: "0 0 30px -6px hsl(38 92% 55% / 0.4), 0 4px 12px -2px rgba(0,0,0,0.5)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      SUBMIT CAPTION
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </GameLayout>
   );
