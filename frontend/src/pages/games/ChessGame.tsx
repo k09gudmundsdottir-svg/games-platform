@@ -602,20 +602,30 @@ const ChessGame = () => {
   useEffect(() => {
     if (gameState.turn !== "black" || gameOver || !timeSelected) return;
     const timer = setTimeout(() => {
-      const move = getComputerMove(gameState);
-      if (move) {
-        // Check for auto-promotion
-        const piece = gameState.board[move.from[0]][move.from[1]];
-        const promoRow = 7;
-        if (piece === "p" && move.to[0] === promoRow) {
-          executeMove(move.from, move.to, "q");
-        } else {
-          executeMove(move.from, move.to);
+      try {
+        nodeCount = 0;
+        const move = getComputerMove(gameState);
+        if (move) {
+          const piece = gameState.board[move.from[0]][move.from[1]];
+          const promoRow = 7;
+          if (piece === "p" && move.to[0] === promoRow) {
+            executeMove(move.from, move.to, "q");
+          } else {
+            executeMove(move.from, move.to);
+          }
+      }
+      } catch (e) {
+        console.error("AI error:", e);
+        // Fallback: pick any random legal move
+        const fallbackMoves = getAllMoves(gameState);
+        if (fallbackMoves.length > 0) {
+          const fm = fallbackMoves[Math.floor(Math.random() * fallbackMoves.length)];
+          executeMove(fm.from, fm.to);
         }
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [gameState.turn, gameOver, timeSelected, executeMove]);
+  }, [gameState.turn, gameOver, timeSelected]);
 
   const handleSquareClick = (r: number, c: number) => {
     if (gameOver || pendingPromotion) return;
