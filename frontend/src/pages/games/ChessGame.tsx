@@ -271,24 +271,62 @@ const evaluatePosition = (chess: Chess): number => {
   }
 
   // Bishop pair bonus
-  if (whiteBishops >= 2) score += 30;
-  if (blackBishops >= 2) score -= 30;
+  if (whiteBishops >= 2) score += 50;
+  if (blackBishops >= 2) score -= 50;
 
-  // Mobility bonus
-  const currentMoves = chess.moves().length;
+  // Pawn structure
+  const wPawnCols = new Array(8).fill(0);
+  const bPawnCols = new Array(8).fill(0);
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const cell = board[r][c];
+      if (!cell || cell.type !== "p") continue;
+      if (cell.color === "w") { wPawnCols[c]++; } else { bPawnCols[c]++; }
+    }
+  }
+  // Doubled pawns penalty
+  for (let c = 0; c < 8; c++) {
+    if (wPawnCols[c] > 1) score -= 20 * (wPawnCols[c] - 1);
+    if (bPawnCols[c] > 1) score += 20 * (bPawnCols[c] - 1);
+  }
+  // Isolated pawns penalty
+  for (let c = 0; c < 8; c++) {
+    const wLeft = c > 0 ? wPawnCols[c-1] : 0;
+    const wRight = c < 7 ? wPawnCols[c+1] : 0;
+    if (wPawnCols[c] > 0 && wLeft === 0 && wRight === 0) score -= 15;
+    const bLeft = c > 0 ? bPawnCols[c-1] : 0;
+    const bRight = c < 7 ? bPawnCols[c+1] : 0;
+    if (bPawnCols[c] > 0 && bLeft === 0 && bRight === 0) score += 15;
+  }
+
+  // Rook on open file
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const cell = board[r][c];
+      if (!cell || cell.type !== "r") continue;
+      if (wPawnCols[c] === 0 && bPawnCols[c] === 0) {
+        score += cell.color === "w" ? 25 : -25; // open file
+      } else if ((cell.color === "w" && wPawnCols[c] === 0) || (cell.color === "b" && bPawnCols[c] === 0)) {
+        score += cell.color === "w" ? 15 : -15; // semi-open
+      }
+    }
+  }
+
+  // Mobility — count legal moves for both sides
+  const moves = chess.moves();
   const turnSign = chess.turn() === "w" ? 1 : -1;
-  score += turnSign * currentMoves * 0.5;
+  score += turnSign * moves.length * 3;
 
   // Check bonus
   if (chess.isCheck()) {
-    score += chess.turn() === "b" ? 20 : -20;
+    score += chess.turn() === "b" ? 30 : -30;
   }
 
   return score;
 };
 
 let nodeCount = 0;
-const MAX_NODES = 50000;
+const MAX_NODES = 200000;
 
 const orderMoves = (moves: Move[]): Move[] => {
   return moves.sort((a, b) => {
@@ -345,7 +383,7 @@ const minimax = (chess: Chess, depth: number, alpha: number, beta: number, maxim
 
   if (chess.isCheckmate()) return maximizing ? -99999 + (5 - depth) : 99999 - (5 - depth);
   if (chess.isDraw() || chess.isStalemate()) return 0;
-  if (depth === 0) return quiesce(chess, alpha, beta, maximizing, 2);
+  if (depth === 0) return quiesce(chess, alpha, beta, maximizing, 3);
 
   const moves = orderMoves(chess.moves({ verbose: true }));
 
@@ -383,7 +421,7 @@ const getComputerMove = (chess: Chess): Move | null => {
   let bestScore = Infinity; // Computer is black (minimizing)
   for (const move of moves) {
     chess.move(move);
-    const score = minimax(chess, 3, -Infinity, Infinity, true);
+    const score = minimax(chess, 4, -Infinity, Infinity, true);
     chess.undo();
     if (score < bestScore) {
       bestScore = score;
