@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  jitsi-web:
+    image: jitsi/web:stable-9823
+    restart: unless-stopped
+    ports:
+      - "8443:80"
+    environment:
+      - ENABLE_AUTH=0
+      - ENABLE_GUESTS=1
+      - ENABLE_LOBBY=0
+      - PUBLIC_URL=https://video.games.azurenexus.com
+      - TZ=UTC
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_BOSH_URL_BASE=http://jitsi-prosody:5280
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_RECORDER_DOMAIN=recorder.meet.jitsi
+      - JICOFO_AUTH_USER=focus
+    volumes:
+      - jitsi-web:/config
+      - jitsi-transcripts:/usr/share/jitsi-meet/transcripts
+    networks:
+      - jitsi
+
+  jitsi-prosody:
+    image: jitsi/prosody:stable-9823
+    restart: unless-stopped
+    environment:
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_RECORDER_DOMAIN=recorder.meet.jitsi
+      - JICOFO_AUTH_USER=focus
+      - JICOFO_AUTH_PASSWORD=azurenexus_jicofo_2026
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=azurenexus_jvb_2026
+      - TZ=UTC
+    volumes:
+      - jitsi-prosody:/config
+    networks:
+      - jitsi
+
+  jitsi-jicofo:
+    image: jitsi/jicofo:stable-9823
+    restart: unless-stopped
+    environment:
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - JICOFO_AUTH_USER=focus
+      - JICOFO_AUTH_PASSWORD=azurenexus_jicofo_2026
+      - TZ=UTC
+    volumes:
+      - jitsi-jicofo:/config
+    depends_on:
+      - jitsi-prosody
+    networks:
+      - jitsi
+
+  jitsi-jvb:
+    image: jitsi/jvb:stable-9823
+    restart: unless-stopped
+    ports:
+      - "10000:10000/udp"
+    environment:
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_SERVER=jitsi-prosody
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=azurenexus_jvb_2026
+      - JVB_PORT=10000
+      - JVB_ADVERTISE_IPS=204.168.189.51
+      - JVB_STUN_SERVERS=stun.l.google.com:19302
+      - TZ=UTC
+    volumes:
+      - jitsi-jvb:/config
+    depends_on:
+      - jitsi-prosody
+    networks:
+      - jitsi
+
+volumes:
+  jitsi-web:
+  jitsi-prosody:
+  jitsi-jicofo:
+  jitsi-jvb:
+  jitsi-transcripts:
+
+networks:
+  jitsi:
+    driver: bridge
