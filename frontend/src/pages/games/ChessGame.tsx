@@ -435,6 +435,41 @@ const getComputerMove = (state: GameState): { from: Pos; to: Pos } | null => {
   return bestMove;
 };
 
+const getHintMove = (state: GameState): { from: Pos; to: Pos; reason: string } | null => {
+  const moves = orderMoves(getAllMoves(state), state);
+  if (moves.length === 0) return null;
+
+  let bestMove = moves[0];
+  let bestScore = -Infinity;
+  for (const move of moves) {
+    const score = minimax(makeMove(state, move.from, move.to), 3, -Infinity, Infinity, false);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+  }
+
+  // Generate reason
+  const target = state.board[bestMove.to[0]][bestMove.to[1]];
+  const piece = state.board[bestMove.from[0]][bestMove.from[1]];
+  const pieceName = (p: string) => ({ p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" }[p.toLowerCase()] || p);
+  const files = "abcdefgh";
+  const fromSq = `${files[bestMove.from[1]]}${8 - bestMove.from[0]}`;
+  const toSq = `${files[bestMove.to[1]]}${8 - bestMove.to[0]}`;
+
+  let reason = `Move ${pieceName(piece || "")} from ${fromSq} to ${toSq}`;
+  if (target) reason += ` — captures ${pieceName(target)}!`;
+  else if (bestScore > 500) reason += " — strong positional advantage";
+  else if (bestScore > 100) reason += " — improves your position";
+  else reason += " — best available move";
+
+  // Check if the move gives check
+  const newState = makeMove(state, bestMove.from, bestMove.to);
+  if (isInCheck(newState, "black")) reason += " (gives check!)";
+
+  return { ...bestMove, reason };
+};
+
 /* ─── Main component ─── */
 const ChessGame = () => {
   const [gameState, setGameState] = useState<GameState>(createInitialState());
@@ -451,6 +486,9 @@ const ChessGame = () => {
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Pos; to: Pos } | null>(null);
   const [capturedByWhite, setCapturedByWhite] = useState<string[]>([]); // pieces white has captured (black pieces)
   const [capturedByBlack, setCapturedByBlack] = useState<string[]>([]); // pieces black has captured (white pieces)
+  const [helpMode, setHelpMode] = useState(false);
+  const [hint, setHint] = useState<{ from: Pos; to: Pos } | null>(null);
+  const [hintThinking, setHintThinking] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const whiteInCheck = isInCheck(gameState.board, "white");
@@ -516,6 +554,7 @@ const ChessGame = () => {
     setGameState(result.newState);
     setLastMove({ from, to });
     setSelected(null);
+    setHint(null);
     setLegalMoves([]);
 
     // Track captured pieces
@@ -798,25 +837,79 @@ const ChessGame = () => {
           advantage={whiteAdvantage > 0 ? whiteAdvantage : 0}
         />
 
-        {/* Resign / New Game buttons */}
-        <div className="flex gap-3 mt-2">
+        {/* Hint display */}
+        {hint && (
+          <div className="mt-2 p-2 rounded-lg text-xs" style={{ backgroundColor: "#2d6ea3", color: "#fff" }}>
+            <div className="font-semibold mb-0.5">💡 Hint</div>
+            <div>{hint.reason}</div>
+            <button onClick={() => setHint(null)} className="mt-1 text-[10px] opacity-70 hover:opacity-100">Dismiss</button>
+          </div>
+        )}
+
+        {/* Controls */}
+        <div className="flex gap-2 mt-2 flex-wrap">
           {timeSelected && !gameOver && (
             <button
               onClick={() => setGameOver("You resigned. Computer wins!")}
-              className="px-4 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
+              className="px-3 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
               style={{ backgroundColor: "#b33430", color: "#fff" }}
             >
               Resign
             </button>
           )}
+          {timeSelected && !gameOver && gameState.turn === "white" && (
+            <button
+              onClick={() => {
+                if (hintThinking) return;
+                setHintThinking(true);
+                setHint(null);
+                setTimeout(() => {
+                  const h = getHintMove(gameState);
+                  if (h) {
+                    setHint(h);
+                    setSelected(h.from);
+                    setLegalMoves(getLegalMoves(gameState, h.from));
+                  }
+                  setHintThinking(false);
+                }, 50);
+              }}
+              className="px-3 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
+              style={{ backgroundColor: "#2d6ea3", color: "#fff" }}
+            >
+              {hintThinking ? "Thinking..." : "💡 Hint"}
+            </button>
+          )}
+          <button
+            onClick={() => setHelpMode(!helpMode)}
+            className="px-3 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
+            style={{ backgroundColor: helpMode ? "#e6912e" : "#555", color: "#fff" }}
+          >
+            {helpMode ? "📖 Help ON" : "📖 Help"}
+          </button>
           <button
             onClick={handleNewGame}
-            className="px-4 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
+            className="px-3 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
             style={{ backgroundColor: "#81b64c", color: "#fff" }}
           >
             New Game
           </button>
         </div>
+
+        {/* Help mode info */}
+        {helpMode && (
+          <div className="mt-2 p-3 rounded-lg text-[11px] leading-relaxed" style={{ backgroundColor: "rgba(230,145,46,0.1)", border: "1px solid rgba(230,145,46,0.3)", color: "#e6912e" }}>
+            <div className="font-bold mb-1">📖 Help Mode Active</div>
+            <div className="space-y-1 text-foreground/70">
+              <p>• Click any piece to see where it can move (green dots)</p>
+              <p>• Circles = empty squares you can move to</p>
+              <p>• Rings = opponent pieces you can capture</p>
+              <p>• Click "💡 Hint" to see the best move the AI recommends</p>
+              <p>• Yellow squares = the last move played</p>
+              <p>• Red glow = your king is in check — you MUST protect it</p>
+              <p>• The AI evaluates thousands of positions to find the best move</p>
+            </div>
+          </div>
+        )}
       </div>
     </GameLayout>
   );
