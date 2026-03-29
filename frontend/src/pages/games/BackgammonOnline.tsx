@@ -537,6 +537,7 @@ const BackgammonOnline = () => {
     setChatMessages(prev => [...prev, msg]);
     channelRef.current.send({ type: "broadcast", event: "chat-msg", payload: { sender: playerName, text: chatInput.trim() } });
     setChatInput("");
+    setTimeout(() => document.getElementById("chat-input")?.focus(), 50);
   };
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages]);
@@ -549,7 +550,8 @@ const BackgammonOnline = () => {
         {unread > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">{unread}</span>}
       </button>
       {chatOpen && (
-        <div className="fixed bottom-20 right-4 z-50 w-72 h-96 rounded-2xl border border-border/50 bg-card shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed bottom-20 right-4 z-50 w-72 h-96 rounded-2xl border border-border/50 bg-card shadow-2xl flex flex-col overflow-hidden"
+          onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
           <div className="px-4 py-2.5 border-b border-border/30 flex items-center justify-between">
             <span className="text-xs font-semibold text-foreground">💬 Chat with {opponentName || "opponent"}</span>
             <button onClick={() => setChatOpen(false)} className="text-muted-foreground hover:text-foreground text-xs">✕</button>
@@ -567,7 +569,8 @@ const BackgammonOnline = () => {
           </div>
           <div className="p-2 border-t border-border/30 flex gap-2">
             <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && sendChat()}
-              placeholder="Type a message..." className="flex-1 px-3 py-1.5 rounded-lg bg-secondary/50 border border-border/30 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/30" />
+              placeholder="Type a message..." autoFocus id="chat-input"
+              className="flex-1 px-3 py-1.5 rounded-lg bg-secondary/50 border border-border/30 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/30" />
             <button onClick={sendChat} className="w-7 h-7 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-primary hover:bg-primary/25">
               <span className="text-xs">➤</span>
             </button>
