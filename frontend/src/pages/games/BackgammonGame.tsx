@@ -243,57 +243,113 @@ const BackgammonGame = () => {
   const computerTurn = () => {
     setGameState("computer");
     setMessage("Opponent's turn...");
-    setTimeout(() => {
+    const runComputer = async () => {
+      await new Promise(r => setTimeout(r, 800));
       const cd1 = Math.ceil(Math.random() * 6);
       const cd2 = Math.ceil(Math.random() * 6);
       const cMoves = cd1 === cd2 ? [cd1, cd1, cd1, cd1] : [cd1, cd2];
       setDice([cd1, cd2]);
+      setMessage(`Opponent rolled ${cd1} and ${cd2}${cd1 === cd2 ? " — doubles!" : ""}`);
+
+      // Pause to let player see the dice
+      await new Promise(r => setTimeout(r, 1200));
+
       let currentBoard = [...board];
       let curBar = computerBar;
       let curOff = computerOff;
+
+      // Plan all moves first
+      const planned: { from: number; to: number; isOff?: boolean }[] = [];
       for (const die of cMoves) {
         if (curBar > 0) {
           const target = 24 - die;
           if (currentBoard[target] <= 1) {
-            if (currentBoard[target] === 1) { currentBoard[target] = 0; setPlayerBar(prev => prev + 1); }
+            if (currentBoard[target] === 1) { currentBoard[target] = 0; }
             currentBoard[target]--;
             curBar--;
+            planned.push({ from: -1, to: target });
             continue;
           }
           continue;
         }
         let allHome = true;
         for (let i = 6; i < 24; i++) { if (currentBoard[i] < 0) { allHome = false; break; } }
+        let moved = false;
         for (let i = 23; i >= 0; i--) {
-          if (currentBoard[i] >= 0) continue;
+          if (currentBoard[i] >= 0 || moved) continue;
           const target = i - die;
           if (target < 0) {
             if (allHome && curBar === 0) {
               if (target === -1 || (() => { for (let j = i + 1; j < 24; j++) { if (currentBoard[j] < 0) return false; } return true; })()) {
-                currentBoard[i]++; curOff++; break;
+                currentBoard[i]++; curOff++;
+                planned.push({ from: i, to: -1, isOff: true });
+                moved = true;
               }
             }
             continue;
           }
           if (currentBoard[target] <= 1) {
-            if (currentBoard[target] === 1) { currentBoard[target] = 0; setPlayerBar(prev => prev + 1); }
-            currentBoard[i]++; currentBoard[target]--; break;
+            if (currentBoard[target] === 1) { currentBoard[target] = 0; }
+            currentBoard[i]++; currentBoard[target]--;
+            planned.push({ from: i, to: target });
+            moved = true;
           }
         }
       }
-      setBoard(currentBoard);
-      setComputerBar(curBar);
-      setComputerOff(curOff);
+
+      // Now replay the moves one by one with animation
+      let replayBoard = [...board];
+      let replayBar = computerBar;
+      let replayOff = computerOff;
+
+      for (const move of planned) {
+        // Show flying piece animation
+        const fromEl = move.from === -1 ? document.querySelector('[data-bar="computer"]') : document.querySelector(`[data-point="${move.from}"]`);
+        const toEl = move.isOff ? document.querySelector('[data-off="computer"]') : document.querySelector(`[data-point="${move.to}"]`);
+        if (fromEl && toEl) {
+          const fr = fromEl.getBoundingClientRect();
+          const tr = toEl.getBoundingClientRect();
+          setFlyingPiece({ fromX: fr.left + fr.width / 2, fromY: fr.top + fr.height / 2, toX: tr.left + tr.width / 2, toY: tr.top + tr.height / 2, isPlayer: false });
+        }
+
+        await new Promise(r => setTimeout(r, 600));
+        setFlyingPiece(null);
+        playPiecePlace();
+
+        // Apply this single move to replay board
+        if (move.from === -1) {
+          replayBar--;
+          replayBoard[move.to]--;
+          setComputerBar(replayBar);
+        } else if (move.isOff) {
+          replayBoard[move.from]++;
+          replayOff++;
+          setComputerOff(replayOff);
+        } else {
+          if (replayBoard[move.to] === 1) { replayBoard[move.to] = 0; setPlayerBar(prev => prev + 1); }
+          replayBoard[move.from]++;
+          replayBoard[move.to]--;
+        }
+        setBoard([...replayBoard]);
+        setMoveHistory(prev => [...prev.slice(-5), move.from === -1 ? `bar → ${move.to + 1}` : move.isOff ? `${move.from + 1} → off` : `${move.from + 1} → ${move.to + 1}`]);
+
+        await new Promise(r => setTimeout(r, 400));
+      }
+
+      // Check win
       let compPieces = 0;
-      currentBoard.forEach(v => { if (v < 0) compPieces += Math.abs(v); });
-      if (compPieces === 0 && curBar === 0) {
+      replayBoard.forEach(v => { if (v < 0) compPieces += Math.abs(v); });
+      if (compPieces === 0 && replayBar === 0) {
         setGameState("gameover");
         setMessage("Opponent wins");
         return;
       }
+
+      await new Promise(r => setTimeout(r, 500));
       setGameState("rolling");
       setMessage("Your turn — roll");
-    }, 1400);
+    };
+    runComputer();
   };
 
   const resetGame = () => {
