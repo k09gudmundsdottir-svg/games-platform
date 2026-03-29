@@ -264,56 +264,56 @@ const BackgammonGame = () => {
   }, [selected, dice, usedDice, board, addLog, computeMovable]);
 
   /* ── Computer turn ───────────────────────────────────────────── */
+  const boardRef = useRef(board);
+  boardRef.current = board;
+
   useEffect(() => {
     if (turn !== "computer" || gameOver || thinking) return;
     setThinking(true);
 
-    const t = setTimeout(() => {
+    const runComputer = async () => {
+      await new Promise(r => setTimeout(r, 200));
       playDiceRoll();
       const d1 = rollDie(), d2 = rollDie();
       const cd = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
       setDice(cd); setUsedDice(cd.map(() => false));
       addLog(`Computer rolled ${d1} and ${d2}${d1 === d2 ? " -- doubles!" : ""}`);
-      const plan = computerPlan(board, cd);
+      const plan = computerPlan(boardRef.current, cd);
 
       if (plan.length === 0) {
         addLog("Computer has no valid moves.");
-        setTimeout(() => {
-          setDice([]); setUsedDice([]); setTurn("player"); setThinking(false);
-          addLog("Your turn -- roll the dice!");
-        }, 150);
+        await new Promise(r => setTimeout(r, 100));
+        setDice([]); setUsedDice([]); setTurn("player"); setThinking(false);
+        addLog("Your turn -- roll the dice!");
         return;
       }
 
-      let cur = cloneBoard(board);
+      let cur = cloneBoard(boardRef.current);
       const usedArr = cd.map(() => false);
-      plan.forEach(([from, to, di], idx) => {
-        const tid = setTimeout(() => {
-          cur = applyMove(cur, "computer", from, to);
-          usedArr[di] = true;
-          playPiecePlace();
-          addLog(`Computer: ${fmtFrom(from)} \u2192 ${fmtTo(to)}`);
-          setBoard(cloneBoard(cur));
-          setUsedDice([...usedArr]);
+      for (let idx = 0; idx < plan.length; idx++) {
+        const [from, to, di] = plan[idx];
+        await new Promise(r => setTimeout(r, 150));
+        cur = applyMove(cur, "computer", from, to);
+        usedArr[di] = true;
+        playPiecePlace();
+        addLog(`Computer: ${fmtFrom(from)} \u2192 ${fmtTo(to)}`);
+        setBoard(cloneBoard(cur));
+        setUsedDice([...usedArr]);
 
-          const w = winner(cur);
-          if (w) {
-            setGameOver(w); setDice([]); addLog("Computer wins!"); setThinking(false); return;
-          }
-          if (idx === plan.length - 1) {
-            setTimeout(() => {
-              setDice([]); setUsedDice([]); setTurn("player"); setThinking(false);
-              addLog("Your turn -- roll the dice!");
-            }, 100);
-          }
-        }, 150 * (idx + 1));
-        compTimer.current.push(tid);
-      });
-    }, 200);
-    compTimer.current.push(t);
+        const w = winner(cur);
+        if (w) {
+          setGameOver(w); setDice([]); addLog("Computer wins!"); setThinking(false);
+          return;
+        }
+      }
+      await new Promise(r => setTimeout(r, 100));
+      setDice([]); setUsedDice([]); setTurn("player"); setThinking(false);
+      addLog("Your turn -- roll the dice!");
+    };
 
-    return () => { compTimer.current.forEach(clearTimeout); compTimer.current = []; };
-  }, [turn, gameOver, thinking, board, addLog]);
+    runComputer();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turn, gameOver]);
 
   const newGame = () => {
     compTimer.current.forEach(clearTimeout); compTimer.current = [];
