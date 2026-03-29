@@ -19,6 +19,7 @@ import MemeGame from "./pages/games/MemeGame.tsx";
 import SolitaireGame from "./pages/games/SolitaireGame.tsx";
 import HeartsGame from "./pages/games/HeartsGame.tsx";
 import GinRummyGame from "./pages/games/GinRummyGame.tsx";
+import BackgammonOnline from "./pages/games/BackgammonOnline.tsx";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/play/chess" element={<ChessGame />} />
             <Route path="/play/backgammon" element={<BackgammonGame />} />
+            <Route path="/play/backgammon-online" element={<BackgammonOnline />} />
             <Route path="/play/checkers" element={<CheckersGame />} />
             <Route path="/play/connect-four" element={<ConnectFourGame />} />
             <Route path="/play/uno" element={<UnoGame />} />
