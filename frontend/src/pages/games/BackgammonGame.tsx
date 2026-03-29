@@ -1,585 +1,706 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, RotateCcw } from "lucide-react";
 import GameLayout from "@/components/GameLayout";
-import { playPiecePlace, playDiceRoll, playVictoryFanfare } from "@/lib/sounds";
+import { playDiceRoll, playPiecePlace } from "@/lib/sounds";
 
-/* ── Types ─────────────────────────────────────────────────────── */
-type Player = "player" | "computer";
-interface BoardState {
-  points: number[];      // 24 slots: positive = player checkers, negative = computer
-  bar: [number, number]; // [player on bar, computer on bar]
-  off: [number, number]; // [player borne off, computer borne off]
-}
+const diceIcons = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6];
 
-/* ── Helpers ───────────────────────────────────────────────────── */
-const rollDie = () => Math.floor(Math.random() * 6) + 1;
-
-const initialBoard = (): BoardState => {
-  const pts = Array(24).fill(0);
-  // Player (positive) moves high→low (index 23→0). Standard setup:
-  // 2 on point-24(idx23), 5 on point-13(idx12), 3 on point-8(idx7), 5 on point-6(idx5)
-  pts[23] = 2; pts[12] = 5; pts[7] = 3; pts[5] = 5;
-  // Computer (negative) mirrors:
-  // 2 on point-1(idx0), 5 on point-12(idx11), 3 on point-17(idx16), 5 on point-19(idx18)
-  pts[0] = -2; pts[11] = -5; pts[16] = -3; pts[18] = -5;
-  return { points: pts, bar: [0, 0], off: [0, 0] };
+// Haptic feedback for mobile
+const haptic = (style: "light" | "medium" | "heavy" = "light") => {
+  if (navigator.vibrate) {
+    navigator.vibrate(style === "light" ? 10 : style === "medium" ? 25 : 50);
+  }
 };
 
-const cloneBoard = (b: BoardState): BoardState => ({
-  points: [...b.points], bar: [b.bar[0], b.bar[1]], off: [b.off[0], b.off[1]],
-});
-
-const pipCount = (board: BoardState, who: Player): number => {
-  let pips = 0;
-  for (let i = 0; i < 24; i++) {
-    if (who === "player" && board.points[i] > 0) pips += board.points[i] * (i + 1);
-    if (who === "computer" && board.points[i] < 0) pips += Math.abs(board.points[i]) * (24 - i);
-  }
-  pips += (who === "player" ? board.bar[0] : board.bar[1]) * 25;
-  return pips;
-};
-
-const allInHome = (board: BoardState, who: Player): boolean => {
-  if (who === "player") {
-    if (board.bar[0] > 0) return false;
-    for (let i = 6; i < 24; i++) if (board.points[i] > 0) return false;
-    return true;
-  }
-  if (board.bar[1] > 0) return false;
-  for (let i = 0; i < 18; i++) if (board.points[i] < 0) return false;
-  return true;
-};
-
-const highestPoint = (board: BoardState, who: Player): number => {
-  if (who === "player") {
-    for (let i = 5; i >= 0; i--) if (board.points[i] > 0) return i + 1;
-    return 0;
-  }
-  for (let i = 18; i < 24; i++) if (board.points[i] < 0) return 24 - i;
-  return 0;
-};
-
-/** Returns valid [from, to] pairs for a single die. from=-1 means bar, to=-1 means bear off. */
-const movesForDie = (board: BoardState, who: Player, die: number): [number, number][] => {
-  const moves: [number, number][] = [];
-  const sign = who === "player" ? 1 : -1;
-  const barCount = who === "player" ? board.bar[0] : board.bar[1];
-
-  if (barCount > 0) {
-    const dest = who === "player" ? 24 - die : die - 1;
-    if (dest >= 0 && dest < 24) {
-      const v = board.points[dest];
-      if (v * sign >= 0 || Math.abs(v) === 1) moves.push([-1, dest]);
-    }
-    return moves; // must re-enter before anything else
-  }
-
-  for (let i = 0; i < 24; i++) {
-    if (board.points[i] * sign <= 0) continue;
-    const dest = who === "player" ? i - die : i + die;
-    if (dest >= 0 && dest < 24) {
-      const v = board.points[dest];
-      if (v * sign >= 0 || Math.abs(v) === 1) moves.push([i, dest]);
-    }
-  }
-
-  if (allInHome(board, who)) {
-    for (let i = 0; i < 24; i++) {
-      if (board.points[i] * sign <= 0) continue;
-      const dist = who === "player" ? i + 1 : 24 - i;
-      if (dist === die) {
-        moves.push([i, -1]);
-      } else if (dist < die && dist === highestPoint(board, who)) {
-        moves.push([i, -1]);
-      }
-    }
-  }
-  return moves;
-};
-
-const applyMove = (board: BoardState, who: Player, from: number, to: number): BoardState => {
-  const b = cloneBoard(board);
-  const sign = who === "player" ? 1 : -1;
-  const bi = who === "player" ? 0 : 1;
-  const obi = who === "player" ? 1 : 0;
-
-  if (from === -1) b.bar[bi]--;
-  else b.points[from] -= sign;
-
-  if (to === -1) {
-    b.off[bi]++;
-  } else {
-    if (b.points[to] * sign < 0 && Math.abs(b.points[to]) === 1) {
-      b.bar[obi]++;
-      b.points[to] = sign;
-    } else {
-      b.points[to] += sign;
-    }
-  }
+const INITIAL_BOARD: number[] = (() => {
+  const b = new Array(24).fill(0);
+  b[0] = 2; b[11] = 5; b[16] = 3; b[18] = 5;
+  b[23] = -2; b[12] = -5; b[7] = -3; b[5] = -5;
   return b;
-};
+})();
 
-const anyMoveExists = (board: BoardState, who: Player, dice: number[]): boolean => {
-  for (const d of dice) if (movesForDie(board, who, d).length > 0) return true;
-  return false;
-};
+type GameState = "rolling" | "moving" | "computer" | "gameover";
 
-/* ── Computer AI ───────────────────────────────────────────────── */
-const scoreMove = (board: BoardState, from: number, to: number): number => {
-  let s = 0;
-  if (to === -1) return 50;
-  if (board.points[to] > 0 && board.points[to] === 1) s += 30; // hit player blot
-  const after = applyMove(board, "computer", from, to);
-  if (Math.abs(after.points[to]) >= 2) s += 15;
-  if (from >= 0 && Math.abs(board.points[from]) === 2) s -= 10;
-  if (Math.abs(after.points[to]) === 1) s -= 12;
-  if (to >= 0) s += to * 0.5; // advance toward home (higher index = closer)
-  if (from === -1) s += 20;
-  return s;
-};
-
-const computerPlan = (board: BoardState, dice: number[]): [number, number, number][] => {
-  // Returns array of [from, to, dieIndex] — tries both orderings for 2-dice
-  const perms: number[][] = dice.length === 2 && dice[0] !== dice[1]
-    ? [[0, 1], [1, 0]] : [dice.map((_, i) => i)];
-
-  let bestSeq: [number, number, number][] = [];
-  let bestScore = -Infinity;
-
-  for (const order of perms) {
-    const seq: [number, number, number][] = [];
-    let cur = cloneBoard(board);
-    let totalScore = 0;
-
-    for (const di of order) {
-      const moves = movesForDie(cur, "computer", dice[di]);
-      if (moves.length === 0) continue;
-      let best = moves[0], bs = -Infinity;
-      for (const m of moves) {
-        const sc = scoreMove(cur, m[0], m[1]);
-        if (sc > bs) { bs = sc; best = m; }
-      }
-      seq.push([best[0], best[1], di]);
-      totalScore += bs;
-      cur = applyMove(cur, "computer", best[0], best[1]);
-    }
-
-    if (seq.length > bestSeq.length || (seq.length === bestSeq.length && totalScore > bestScore)) {
-      bestSeq = seq;
-      bestScore = totalScore;
-    }
-  }
-  return bestSeq;
-};
-
-/* ── Point label helpers ──────────────────────────────────────── */
-const ptLabel = (idx: number) => idx + 1;      // 1-based point number for display
-const fmtFrom = (f: number) => f === -1 ? "bar" : String(ptLabel(f));
-const fmtTo = (t: number) => t === -1 ? "off" : String(ptLabel(t));
-
-/* ── Component ─────────────────────────────────────────────────── */
 const BackgammonGame = () => {
-  const [board, setBoard] = useState<BoardState>(initialBoard);
-  const [turn, setTurn] = useState<Player>("player");
+  const [board, setBoard] = useState<number[]>([...INITIAL_BOARD]);
   const [dice, setDice] = useState<number[]>([]);
-  const [usedDice, setUsedDice] = useState<boolean[]>([]);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [validDests, setValidDests] = useState<number[]>([]);
-  const [gameOver, setGameOver] = useState<Player | null>(null);
-  const [log, setLog] = useState<string[]>(["Your turn -- roll the dice!"]);
-  const [thinking, setThinking] = useState(false);
-  const [moveAnim, setMoveAnim] = useState<{ from: number; to: number } | null>(null);
-  const movable = useRef<Set<number>>(new Set());
-  const compTimer = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [movesLeft, setMovesLeft] = useState<number[]>([]);
+  const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
+  const [gameState, setGameState] = useState<GameState>("rolling");
+  const [playerBar, setPlayerBar] = useState(0);
+  const [computerBar, setComputerBar] = useState(0);
+  const [playerOff, setPlayerOff] = useState(0);
+  const [computerOff, setComputerOff] = useState(0);
+  const [message, setMessage] = useState("Roll to begin");
+  const [moveHistory, setMoveHistory] = useState<string[]>([]);
+  const [flyingPiece, setFlyingPiece] = useState<{ fromX: number; fromY: number; toX: number; toY: number; isPlayer: boolean } | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const pointRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
-  const addLog = useCallback((m: string) => setLog(p => [m, ...p].slice(0, 60)), []);
-  const winner = (b: BoardState): Player | null => b.off[0] >= 15 ? "player" : b.off[1] >= 15 ? "computer" : null;
+  const pipCount = useMemo(() => {
+    let player = 0, computer = 0;
+    board.forEach((v, i) => {
+      if (v > 0) player += v * (24 - i);
+      if (v < 0) computer += Math.abs(v) * (i + 1);
+    });
+    player += playerBar * 25;
+    computer += computerBar * 25;
+    return { player, computer };
+  }, [board, playerBar, computerBar]);
 
-  const remaining = useCallback(() => dice.filter((_, i) => !usedDice[i]), [dice, usedDice]);
+  const canBearOff = useCallback(() => {
+    if (playerBar > 0) return false;
+    for (let i = 0; i < 18; i++) { if (board[i] > 0) return false; }
+    return true;
+  }, [board, playerBar]);
 
-  const computeMovable = useCallback((b: BoardState, rem: number[]) => {
-    const s = new Set<number>();
-    for (const d of rem) for (const [f] of movesForDie(b, "player", d)) s.add(f);
-    return s;
-  }, []);
+  const getValidMoves = useCallback((from: number, moves: number[]): number[] => {
+    const validTargets: number[] = [];
+    const uniqueMoves = [...new Set(moves)];
+    for (const die of uniqueMoves) {
+      if (from === -1) {
+        const target = die - 1;
+        if (board[target] >= -1) validTargets.push(target);
+        continue;
+      }
+      const target = from + die;
+      if (target >= 24 && canBearOff()) {
+        if (target === 24) { validTargets.push(24); }
+        else {
+          let hasHigher = false;
+          for (let i = from + 1; i < 24; i++) { if (board[i] > 0) { hasHigher = true; break; } }
+          if (!hasHigher && from >= 18) validTargets.push(24);
+        }
+        continue;
+      }
+      if (target < 24 && board[target] >= -1) validTargets.push(target);
+    }
+    return [...new Set(validTargets)];
+  }, [board, canBearOff]);
 
-  /* ── Player actions ──────────────────────────────────────────── */
-  const handleRoll = useCallback(() => {
-    if (turn !== "player" || dice.length > 0 || gameOver) return;
+  const hasValidMoves = useCallback((moves: number[]): boolean => {
+    if (playerBar > 0) return getValidMoves(-1, moves).length > 0;
+    for (let i = 0; i < 24; i++) {
+      if (board[i] > 0 && getValidMoves(i, moves).length > 0) return true;
+    }
+    return false;
+  }, [board, playerBar, getValidMoves]);
+
+  const getValidMovesForBoard = (b: number[], from: number, moves: number[]): number[] => {
+    const targets: number[] = [];
+    for (const die of [...new Set(moves)]) {
+      const target = from + die;
+      if (target >= 24) {
+        let allHome = true;
+        for (let i = 0; i < 18; i++) { if (b[i] > 0) { allHome = false; break; } }
+        if (allHome && playerBar === 0) {
+          if (target === 24) targets.push(24);
+          else { let h = false; for (let i = from + 1; i < 24; i++) { if (b[i] > 0) { h = true; break; } } if (!h) targets.push(24); }
+        }
+      } else if (b[target] >= -1) targets.push(target);
+    }
+    return [...new Set(targets)];
+  };
+
+  const removeDie = (dieUsed: number): number[] => {
+    const idx = movesLeft.indexOf(dieUsed);
+    if (idx === -1) return movesLeft;
+    const copy = [...movesLeft];
+    copy.splice(idx, 1);
+    return copy;
+  };
+
+  const checkTurnEnd = (remaining: number[], currentBoard: number[]) => {
+    let playerPieces = 0;
+    currentBoard.forEach(v => { if (v > 0) playerPieces += v; });
+    if (playerPieces === 0 && playerBar === 0) {
+      setGameState("gameover");
+      setMessage("You win!");
+      return;
+    }
+    if (remaining.length === 0) { setTimeout(() => computerTurn(), 800); return; }
+    let canMove = false;
+    if (playerBar > 0) { canMove = getValidMoves(-1, remaining).length > 0; }
+    else { for (let i = 0; i < 24; i++) { if (currentBoard[i] > 0 && getValidMovesForBoard(currentBoard, i, remaining).length > 0) { canMove = true; break; } } }
+    if (!canMove) { setMessage("No valid moves"); setTimeout(() => computerTurn(), 800); }
+  };
+
+  const rollDice = () => {
+    haptic("medium");
     playDiceRoll();
-    const d1 = rollDie(), d2 = rollDie();
-    const nd = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
-    const nu = nd.map(() => false);
-    setDice(nd); setUsedDice(nu);
-    addLog(`You rolled ${d1} and ${d2}${d1 === d2 ? " -- doubles!" : ""}`);
-    if (!anyMoveExists(board, "player", nd)) {
-      addLog("No valid moves available. Turn passes.");
-      setTimeout(() => { setDice([]); setUsedDice([]); setTurn("computer"); }, 200);
+    const d1 = Math.ceil(Math.random() * 6);
+    const d2 = Math.ceil(Math.random() * 6);
+    setDice([d1, d2]);
+    const newMoves = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
+    setMovesLeft(newMoves);
+    if (hasValidMoves(newMoves)) {
+      setGameState("moving");
+      setMessage(`Rolled ${d1} & ${d2}`);
     } else {
-      movable.current = computeMovable(board, nd);
+      setMessage(`Rolled ${d1} & ${d2} — no moves`);
+      setTimeout(() => computerTurn(), 1000);
     }
-  }, [turn, dice, board, gameOver, addLog, computeMovable]);
+  };
 
-  const handleSelect = useCallback((ptIdx: number) => {
-    if (turn !== "player" || dice.length === 0 || gameOver) return;
-    if (!movable.current.has(ptIdx)) return;
-    const dests = new Set<number>();
-    for (const d of remaining()) {
-      for (const [f, t] of movesForDie(board, "player", d)) {
-        if (f === ptIdx) dests.add(t);
-      }
+  const getPointPosition = (pointIndex: number): { x: number; y: number } | null => {
+    const el = pointRefs.current[pointIndex];
+    const boardEl = boardRef.current;
+    if (!el || !boardEl) return null;
+    const boardRect = boardEl.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    return {
+      x: elRect.left + elRect.width / 2 - boardRect.left,
+      y: elRect.top + elRect.height / 2 - boardRect.top,
+    };
+  };
+
+  const makeMove = (from: number, to: number, dieUsed: number) => {
+    // Calculate flying animation positions
+    const fromPos = from === -1 ? null : getPointPosition(from);
+    const toPos = to === 24 ? null : getPointPosition(to);
+
+    const isPlayer = true;
+
+    if (fromPos && toPos) {
+      // Animate the piece flying
+      setFlyingPiece({ fromX: fromPos.x, fromY: fromPos.y, toX: toPos.x, toY: toPos.y, isPlayer });
+      setTimeout(() => setFlyingPiece(null), 400);
     }
-    if (dests.size === 0) return;
-    setSelected(ptIdx);
-    setValidDests(Array.from(dests));
-  }, [turn, dice, gameOver, remaining, board]);
 
-  const handleMove = useCallback((dest: number) => {
-    if (selected === null) return;
-    let dieIdx = -1;
-    for (let i = 0; i < dice.length; i++) {
-      if (usedDice[i]) continue;
-      if (movesForDie(board, "player", dice[i]).some(([f, t]) => f === selected && t === dest)) {
-        dieIdx = i; break;
-      }
-    }
-    if (dieIdx === -1) return;
-
-    const nb = applyMove(board, "player", selected, dest);
-    const nu = [...usedDice]; nu[dieIdx] = true;
-    playPiecePlace();
-    addLog(`You: ${fmtFrom(selected)} \u2192 ${fmtTo(dest)}`);
-
-    const w = winner(nb);
-    if (w) {
-      setBoard(nb); setGameOver(w); setDice([]); playVictoryFanfare();
-      addLog("You win!"); setSelected(null); setValidDests([]); return;
-    }
-    setBoard(nb); setUsedDice(nu); setSelected(null); setValidDests([]);
-    const rem = dice.filter((_, i) => !nu[i]);
-    if (rem.length === 0 || !anyMoveExists(nb, "player", rem)) {
-      if (rem.length > 0) addLog("No more valid moves.");
-      setTimeout(() => { setDice([]); setUsedDice([]); setTurn("computer"); }, 100);
-    } else {
-      movable.current = computeMovable(nb, rem);
-    }
-  }, [selected, dice, usedDice, board, addLog, computeMovable]);
-
-  /* ── Computer turn ───────────────────────────────────────────── */
-  const boardRef = useRef(board);
-  boardRef.current = board;
-
-  useEffect(() => {
-    if (turn !== "computer" || gameOver || thinking) return;
-    setThinking(true);
-
-    const runComputer = async () => {
-      await new Promise(r => setTimeout(r, 800));
-      playDiceRoll();
-      const d1 = rollDie(), d2 = rollDie();
-      const cd = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
-      setDice(cd); setUsedDice(cd.map(() => false));
-      addLog(`Computer rolled ${d1} and ${d2}${d1 === d2 ? " -- doubles!" : ""}`);
-
-      // Pause to let player see the dice
-      await new Promise(r => setTimeout(r, 1200));
-
-      const plan = computerPlan(boardRef.current, cd);
-
-      if (plan.length === 0) {
-        addLog("Computer has no valid moves.");
-        await new Promise(r => setTimeout(r, 800));
-        setDice([]); setUsedDice([]); setTurn("player"); setThinking(false);
-        addLog("Your turn -- roll the dice!");
+    const newBoard = [...board];
+    // Delay the actual board update slightly so flying piece is visible
+    const applyMove = () => {
+      haptic("medium");
+      playPiecePlace();
+      if (from === -1) setPlayerBar(prev => prev - 1);
+      else newBoard[from]--;
+      if (to === 24) {
+        setPlayerOff(prev => prev + 1);
+        setMoveHistory(prev => [...prev.slice(-5), `${from + 1} → off`]);
+        setBoard(newBoard);
+        const remaining = removeDie(dieUsed);
+        setMovesLeft(remaining);
+        checkTurnEnd(remaining, newBoard);
         return;
       }
-
-      let cur = cloneBoard(boardRef.current);
-      const usedArr = cd.map(() => false);
-      for (let idx = 0; idx < plan.length; idx++) {
-        const [from, to, di] = plan[idx];
-        // Highlight source briefly
-        setMoveAnim({ from, to: -99 });
-        await new Promise(r => setTimeout(r, 400));
-        // Animate to destination
-        setMoveAnim({ from, to });
-        await new Promise(r => setTimeout(r, 300));
-        cur = applyMove(cur, "computer", from, to);
-        usedArr[di] = true;
-        playPiecePlace();
-        setMoveAnim(null);
-        addLog(`Computer: ${fmtFrom(from)} \u2192 ${fmtTo(to)}`);
-        setBoard(cloneBoard(cur));
-        setUsedDice([...usedArr]);
-        await new Promise(r => setTimeout(r, 200));
-
-        const w = winner(cur);
-        if (w) {
-          setGameOver(w); setDice([]); addLog("Computer wins!"); setThinking(false);
-          return;
-        }
-      }
-      await new Promise(r => setTimeout(r, 600));
-      setDice([]); setUsedDice([]); setTurn("player"); setThinking(false);
-      addLog("Your turn -- roll the dice!");
+      if (newBoard[to] === -1) { newBoard[to] = 0; setComputerBar(prev => prev + 1); }
+      newBoard[to]++;
+      setMoveHistory(prev => [...prev.slice(-5), from === -1 ? `bar → ${to + 1}` : `${from + 1} → ${to + 1}`]);
+      setBoard(newBoard);
+      const remaining = removeDie(dieUsed);
+      setMovesLeft(remaining);
+      checkTurnEnd(remaining, newBoard);
     };
 
-    runComputer();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turn, gameOver]);
-
-  const newGame = () => {
-    compTimer.current.forEach(clearTimeout); compTimer.current = [];
-    setBoard(initialBoard()); setTurn("player"); setDice([]); setUsedDice([]);
-    setSelected(null); setValidDests([]); setGameOver(null); setThinking(false); setMoveAnim(null);
-    setLog(["Your turn -- roll the dice!"]); movable.current = new Set();
+    if (fromPos && toPos) {
+      // Remove piece from source immediately for visual consistency
+      if (from !== -1) { newBoard[from]--; setBoard([...newBoard]); newBoard[from]++; }
+      setTimeout(() => {
+        if (from !== -1) newBoard[from]++; // restore for proper applyMove
+        applyMove();
+      }, 350);
+    } else {
+      applyMove();
+    }
   };
 
-  /* ── Render helpers ──────────────────────────────────────────── */
-  const Checker = ({ who, count, ptIdx, top }: { who: Player; count: number; ptIdx: number; top: boolean }) => {
-    const n = Math.min(Math.abs(count), 5);
-    const total = Math.abs(count);
-    const isP = who === "player";
-    const canClick = turn === "player" && dice.length > 0 && !gameOver && isP && movable.current.has(ptIdx);
-    const isSel = selected === ptIdx;
-
-    return (
-      <div className={`flex ${top ? "flex-col" : "flex-col-reverse"} items-center gap-0.5`}>
-        {Array.from({ length: n }).map((_, i) => (
-          <div key={i}
-            onClick={canClick ? () => handleSelect(ptIdx) : undefined}
-            className={`w-[26px] h-[26px] sm:w-[30px] sm:h-[30px] rounded-full border-2 flex items-center justify-center
-              text-[9px] font-bold select-none transition-all
-              ${isP ? "bg-gradient-to-br from-amber-400 to-amber-600 border-amber-300/80 text-amber-900 shadow-md shadow-amber-900/20"
-                    : "bg-gradient-to-br from-gray-300 to-gray-500 border-gray-200/80 text-gray-700 shadow-md shadow-gray-900/20"}
-              ${canClick ? "cursor-pointer ring-2 ring-emerald-400/60 hover:scale-110" : ""}
-              ${isSel ? "ring-2 ring-cyan-400 scale-110 z-20" : ""}`}
-          >
-            {i === n - 1 && total > 5 ? total : ""}
-          </div>
-        ))}
-      </div>
-    );
+  const handlePointClick = (pointIndex: number) => {
+    haptic("light");
+    if (gameState !== "moving") return;
+    if (playerBar > 0) {
+      const targets = getValidMoves(-1, movesLeft);
+      if (targets.includes(pointIndex)) {
+        makeMove(-1, pointIndex, pointIndex + 1);
+      }
+      return;
+    }
+    if (selectedPoint === null) {
+      if (board[pointIndex] > 0 && getValidMoves(pointIndex, movesLeft).length > 0) {
+        setSelectedPoint(pointIndex);
+      }
+    } else if (selectedPoint === pointIndex) {
+      setSelectedPoint(null);
+    } else {
+      const targets = getValidMoves(selectedPoint, movesLeft);
+      if (targets.includes(pointIndex)) {
+        makeMove(selectedPoint, pointIndex, pointIndex - selectedPoint);
+        setSelectedPoint(null);
+      } else if (board[pointIndex] > 0 && getValidMoves(pointIndex, movesLeft).length > 0) {
+        setSelectedPoint(pointIndex);
+      } else {
+        setSelectedPoint(null);
+      }
+    }
   };
 
-  const Point = ({ idx, top }: { idx: number; top: boolean }) => {
-    const v = board.points[idx];
-    const isDest = validDests.includes(idx);
-    const col = top ? idx - 12 : 11 - idx;
-    const dark = col % 2 === 0;
-    const isAnimFrom = moveAnim?.from === idx;
-    const isAnimTo = moveAnim?.to === idx;
+  const handleBearOff = () => {
+    if (selectedPoint === null) return;
+    const targets = getValidMoves(selectedPoint, movesLeft);
+    if (targets.includes(24)) {
+      const dieNeeded = 24 - selectedPoint;
+      const actualDie = movesLeft.find(d => d >= dieNeeded);
+      if (actualDie) makeMove(selectedPoint, 24, actualDie);
+      setSelectedPoint(null);
+    }
+  };
 
+  const computerTurn = () => {
+    setGameState("computer");
+    setMessage("Opponent's turn...");
+    setTimeout(() => {
+      const cd1 = Math.ceil(Math.random() * 6);
+      const cd2 = Math.ceil(Math.random() * 6);
+      const cMoves = cd1 === cd2 ? [cd1, cd1, cd1, cd1] : [cd1, cd2];
+      setDice([cd1, cd2]);
+      let currentBoard = [...board];
+      let curBar = computerBar;
+      let curOff = computerOff;
+      for (const die of cMoves) {
+        if (curBar > 0) {
+          const target = 24 - die;
+          if (currentBoard[target] <= 1) {
+            if (currentBoard[target] === 1) { currentBoard[target] = 0; setPlayerBar(prev => prev + 1); }
+            currentBoard[target]--;
+            curBar--;
+            continue;
+          }
+          continue;
+        }
+        let allHome = true;
+        for (let i = 6; i < 24; i++) { if (currentBoard[i] < 0) { allHome = false; break; } }
+        for (let i = 23; i >= 0; i--) {
+          if (currentBoard[i] >= 0) continue;
+          const target = i - die;
+          if (target < 0) {
+            if (allHome && curBar === 0) {
+              if (target === -1 || (() => { for (let j = i + 1; j < 24; j++) { if (currentBoard[j] < 0) return false; } return true; })()) {
+                currentBoard[i]++; curOff++; break;
+              }
+            }
+            continue;
+          }
+          if (currentBoard[target] <= 1) {
+            if (currentBoard[target] === 1) { currentBoard[target] = 0; setPlayerBar(prev => prev + 1); }
+            currentBoard[i]++; currentBoard[target]--; break;
+          }
+        }
+      }
+      setBoard(currentBoard);
+      setComputerBar(curBar);
+      setComputerOff(curOff);
+      let compPieces = 0;
+      currentBoard.forEach(v => { if (v < 0) compPieces += Math.abs(v); });
+      if (compPieces === 0 && curBar === 0) {
+        setGameState("gameover");
+        setMessage("Opponent wins");
+        return;
+      }
+      setGameState("rolling");
+      setMessage("Your turn — roll");
+    }, 1400);
+  };
+
+  const resetGame = () => {
+    setBoard([...INITIAL_BOARD]); setDice([]); setMovesLeft([]); setSelectedPoint(null);
+    setGameState("rolling"); setPlayerBar(0); setComputerBar(0); setPlayerOff(0);
+    setComputerOff(0); setMessage("Roll to begin"); setMoveHistory([]);
+  };
+
+  const validTargets = useMemo(() => {
+    if (gameState !== "moving" || selectedPoint === null) return new Set<number>();
+    return new Set(getValidMoves(selectedPoint, movesLeft));
+  }, [gameState, selectedPoint, movesLeft, getValidMoves]);
+
+  const selectablePoints = useMemo(() => {
+    if (gameState !== "moving") return new Set<number>();
+    if (playerBar > 0) return new Set<number>();
+    const pts = new Set<number>();
+    for (let i = 0; i < 24; i++) {
+      if (board[i] > 0 && getValidMoves(i, movesLeft).length > 0) pts.add(i);
+    }
+    return pts;
+  }, [gameState, board, movesLeft, playerBar, getValidMoves]);
+
+  const DiceIcon1 = dice.length ? diceIcons[dice[0] - 1] : null;
+  const DiceIcon2 = dice.length ? diceIcons[dice[1] - 1] : null;
+
+  // Board layout: top = points 13→24 (left to right), bottom = points 12→1 (left to right)
+  const topLeft = [12, 13, 14, 15, 16, 17];
+  const topRight = [18, 19, 20, 21, 22, 23];
+  const bottomLeft = [11, 10, 9, 8, 7, 6];
+  const bottomRight = [5, 4, 3, 2, 1, 0];
+
+  const Checker = ({ isPlayer, isSelected, isSelectable, small }: { isPlayer: boolean; isSelected?: boolean; isSelectable?: boolean; small?: boolean }) => {
+    const size = small ? "w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" : "w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-11 lg:h-11";
     return (
-      <div key={idx}
-        onClick={isDest ? () => handleMove(idx) : undefined}
-        className={`flex-1 flex ${top ? "flex-col items-center pt-0.5" : "flex-col-reverse items-center pb-0.5"}
-          relative min-h-[130px] sm:min-h-[150px] ${isDest ? "cursor-pointer" : ""}
-          ${isAnimFrom || isAnimTo ? "transition-all duration-300" : ""}`}
+      <div className={`${size} rounded-full relative flex-shrink-0 transition-all duration-200 ${
+        isSelected ? "scale-110 z-20" : ""
+      } ${isSelectable ? "cursor-pointer" : ""}`}
       >
-        <div className={`absolute ${top ? "top-0" : "bottom-0"} inset-x-0 mx-auto`}
-          style={{
-            width: "100%", height: "115px",
-            clipPath: top ? "polygon(0 0, 100% 0, 50% 100%)" : "polygon(50% 0, 0 100%, 100% 100%)",
-            background: dark
-              ? "linear-gradient(to bottom, #7B5B2E, #5A4220)"
-              : "linear-gradient(to bottom, #C9963A, #A67B28)",
-            opacity: isDest ? 1 : isAnimFrom || isAnimTo ? 1 : 0.65,
-          }} />
-        {/* Move animation: source glow (red/orange) */}
-        {isAnimFrom && (
-          <div className={`absolute ${top ? "top-0" : "bottom-0"} inset-x-0 mx-auto z-[5]`}
-            style={{
-              width: "100%", height: "115px",
-              clipPath: top ? "polygon(0 0, 100% 0, 50% 100%)" : "polygon(50% 0, 0 100%, 100% 100%)",
-              background: "rgba(251, 191, 36, 0.35)",
-              animation: "pulse 0.6s ease-in-out infinite",
-            }} />
-        )}
-        {/* Move animation: destination glow (green) */}
-        {isAnimTo && (
-          <div className={`absolute ${top ? "top-0" : "bottom-0"} inset-x-0 mx-auto z-[5]`}
-            style={{
-              width: "100%", height: "115px",
-              clipPath: top ? "polygon(0 0, 100% 0, 50% 100%)" : "polygon(50% 0, 0 100%, 100% 100%)",
-              background: "rgba(52, 211, 153, 0.40)",
-              animation: "pulse 0.4s ease-in-out infinite",
-            }} />
-        )}
-        {isDest && (
-          <div className={`absolute ${top ? "top-0" : "bottom-0"} inset-x-0 mx-auto z-[5]`}
-            style={{
-              width: "100%", height: "115px",
-              clipPath: top ? "polygon(0 0, 100% 0, 50% 100%)" : "polygon(50% 0, 0 100%, 100% 100%)",
-              background: "rgba(52, 211, 153, 0.30)",
-            }} />
-        )}
-        <div className="relative z-10">
-          {v !== 0 && <Checker who={v > 0 ? "player" : "computer"} count={v} ptIdx={idx} top={top} />}
+        {/* Outer ring */}
+        <div className={`absolute inset-0 rounded-full ${
+          isPlayer
+            ? "bg-gradient-to-b from-[hsl(38,90%,62%)] to-[hsl(32,85%,40%)]"
+            : "bg-gradient-to-b from-[hsl(0,0%,82%)] to-[hsl(0,0%,52%)]"
+        } ${isSelected ? "shadow-[0_0_16px_4px_hsl(38,90%,55%/0.6)]" : ""}`} />
+        {/* Inner disc with subtle concentric ring */}
+        <div className={`absolute inset-[3px] rounded-full ${
+          isPlayer
+            ? "bg-gradient-to-br from-[hsl(40,95%,65%)] via-[hsl(38,90%,55%)] to-[hsl(30,80%,42%)]"
+            : "bg-gradient-to-br from-[hsl(0,0%,88%)] via-[hsl(0,0%,75%)] to-[hsl(0,0%,58%)]"
+        }`} />
+        {/* Glossy highlight */}
+        <div className={`absolute inset-[5px] rounded-full ${
+          isPlayer
+            ? "bg-gradient-to-b from-[hsl(42,100%,78%/0.5)] to-transparent"
+            : "bg-gradient-to-b from-[hsl(0,0%,95%/0.5)] to-transparent"
+        }`} style={{ height: "40%" }} />
+      </div>
+    );
+  };
+
+  const renderPoint = (index: number, isTop: boolean) => {
+    const count = board[index];
+    const absCount = Math.abs(count);
+    const isPlayer = count > 0;
+    const isSelected = selectedPoint === index;
+    const isTarget = validTargets.has(index);
+    const isSelectable = selectablePoints.has(index) && selectedPoint === null;
+    const maxShow = Math.min(absCount, 5);
+    const overflow = absCount > 5 ? absCount : 0;
+    const isEven = index % 2 === 0;
+
+    return (
+      <motion.div
+        key={index}
+        ref={(el: HTMLDivElement | null) => { pointRefs.current[index] = el; }}
+        className={`flex-1 flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center relative cursor-pointer min-w-[28px] touch-manipulation`}
+        onClick={() => handlePointClick(index)}
+        whileTap={{ scale: 0.95 }}
+        transition={{ duration: 0.1 }}
+      >
+        {/* Triangle */}
+        <svg viewBox="0 0 48 120" className="w-full h-[90px] sm:h-[120px] md:h-[160px] lg:h-[200px]" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={`tri-${index}`} x1="0" y1={isTop ? "0" : "1"} x2="0" y2={isTop ? "1" : "0"}>
+              <stop offset="0%" stopColor={isEven ? "hsl(38, 55%, 38%)" : "hsl(25, 25%, 22%)"} />
+              <stop offset="100%" stopColor={isEven ? "hsl(38, 45%, 28%)" : "hsl(25, 18%, 15%)"} />
+            </linearGradient>
+          </defs>
+          <polygon
+            points={isTop ? "2,0 46,0 24,116" : "2,120 46,120 24,4"}
+            fill={`url(#tri-${index})`}
+            stroke={isTarget ? "hsl(38, 90%, 55%)" : isEven ? "hsl(38, 40%, 30%)" : "hsl(25, 15%, 18%)"}
+            strokeWidth={isTarget ? "2" : "0.5"}
+          />
+          {isTarget && (
+            <polygon
+              points={isTop ? "2,0 46,0 24,116" : "2,120 46,120 24,4"}
+              fill="hsl(38, 90%, 55%)"
+              opacity="0.12"
+            />
+          )}
+        </svg>
+
+        {/* Pieces stack */}
+        <div className={`absolute ${isTop ? "top-1" : "bottom-1"} flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center`}
+          style={{ gap: "1px" }}
+        >
+          {Array.from({ length: maxShow }).map((_, j) => (
+            <motion.div
+              key={j}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: j * 0.03 }}
+            >
+              <Checker
+                isPlayer={isPlayer}
+                isSelected={isSelected && j === maxShow - 1}
+                isSelectable={isSelectable && j === maxShow - 1}
+              />
+              {j === maxShow - 1 && overflow > 0 && (
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-display font-bold text-primary-foreground drop-shadow-md">
+                  {overflow}
+                </span>
+              )}
+            </motion.div>
+          ))}
         </div>
-        <span className={`absolute ${top ? "bottom-0.5" : "top-0.5"} text-[7px] text-amber-300/30 font-mono select-none`}>
-          {ptLabel(idx)}
-        </span>
-      </div>
-    );
-  };
 
-  const BarCheckers = ({ who }: { who: Player }) => {
-    const c = who === "player" ? board.bar[0] : board.bar[1];
-    if (c === 0) return null;
-    const isP = who === "player";
-    const canClick = isP && turn === "player" && dice.length > 0 && !gameOver && movable.current.has(-1);
-    return (
-      <div className="flex flex-col items-center gap-0.5">
-        {Array.from({ length: Math.min(c, 4) }).map((_, i) => (
-          <div key={i}
-            onClick={canClick ? () => handleSelect(-1) : undefined}
-            className={`w-[26px] h-[26px] sm:w-[30px] sm:h-[30px] rounded-full border-2 flex items-center justify-center
-              text-[9px] font-bold select-none
-              ${isP ? "bg-gradient-to-br from-amber-400 to-amber-600 border-amber-300/80 text-amber-900 shadow-md"
-                    : "bg-gradient-to-br from-gray-300 to-gray-500 border-gray-200/80 text-gray-700 shadow-md"}
-              ${canClick ? "cursor-pointer ring-2 ring-emerald-400/60 hover:scale-110" : ""}
-              ${selected === -1 && isP ? "ring-2 ring-cyan-400 scale-110" : ""}`}
-          >
-            {i === Math.min(c, 4) - 1 && c > 4 ? c : ""}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  const OffTray = ({ who }: { who: Player }) => {
-    const c = who === "player" ? board.off[0] : board.off[1];
-    const isP = who === "player";
-    const isDest = isP && validDests.includes(-1);
-    return (
-      <div onClick={isDest ? () => handleMove(-1) : undefined}
-        className={`w-10 sm:w-14 flex flex-col ${isP ? "justify-end pb-2" : "justify-start pt-2"} items-center
-          border-l border-amber-900/40 ${isDest ? "cursor-pointer" : ""}`}
-        style={{ background: "linear-gradient(180deg, #1a0f08, #251509)" }}>
-        {isDest && <span className="text-[9px] text-emerald-400 font-bold animate-pulse mb-1">BEAR OFF</span>}
-        {c > 0 && (
-          <div className={`flex ${isP ? "flex-col-reverse" : "flex-col"} items-center gap-px`}>
-            {Array.from({ length: Math.min(c, 8) }).map((_, i) => (
-              <div key={i} className={`w-6 h-[6px] rounded-sm ${isP
-                ? "bg-gradient-to-r from-amber-400 to-amber-600 border border-amber-300/40"
-                : "bg-gradient-to-r from-gray-300 to-gray-500 border border-gray-200/40"}`} />
-            ))}
-            {c > 8 && <span className={`text-[8px] font-bold ${isP ? "text-amber-400" : "text-gray-400"}`}>{c}</span>}
-          </div>
+        {/* Target glow dot */}
+        {isTarget && absCount === 0 && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: [1, 1.2, 1] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+            className={`absolute ${isTop ? "top-8 sm:top-10" : "bottom-8 sm:bottom-10"} w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-primary/30 border border-primary/60`}
+          />
         )}
-      </div>
+      </motion.div>
     );
   };
 
-  // Point indices for each row
-  const topPts = Array.from({ length: 12 }, (_, i) => 12 + i);    // idx 12..23
-  const botPts = Array.from({ length: 12 }, (_, i) => 11 - i);    // idx 11..0
-
-  const sidebar = (
-    <div className="p-3 space-y-3">
-      <h3 className="text-xs font-display font-bold text-foreground">Move Log</h3>
-      <div className="space-y-1 max-h-[500px] overflow-y-auto">
-        {log.map((m, i) => (
-          <p key={i} className={`text-[10px] font-body leading-tight ${i === 0 ? "text-foreground" : "text-muted-foreground"}`}>{m}</p>
-        ))}
-      </div>
+  const OffTray = ({ count, isPlayer }: { count: number; isPlayer: boolean }) => (
+    <div className="flex flex-col items-center gap-0.5">
+      {Array.from({ length: Math.min(count, 5) }).map((_, i) => (
+        <Checker key={i} isPlayer={isPlayer} small />
+      ))}
+      {count > 5 && (
+        <span className="text-[10px] font-display font-bold text-primary mt-0.5">×{count}</span>
+      )}
     </div>
   );
 
   return (
-    <GameLayout title="Backgammon" sidebar={sidebar}>
-      <div className="flex flex-col items-center justify-center h-full p-2 sm:p-4 gap-3">
-        {/* Info bar */}
-        <div className="flex items-center gap-4 sm:gap-6 w-full max-w-[720px] text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-gray-300 to-gray-500 border border-gray-200" />
-            <span className="font-display font-semibold text-foreground">Computer</span>
-            <span className="text-[10px] text-muted-foreground font-body">Pip {pipCount(board, "computer")}</span>
-            <span className="text-[10px] text-emerald-400 font-body">Off {board.off[1]}</span>
+    <GameLayout title="Backgammon" isSkillGame>
+      <div className="flex flex-col items-center justify-center h-full p-1 sm:p-2 md:p-3 gap-1 sm:gap-2">
+        {/* Scoreboard */}
+        <div className="w-full max-w-[900px] flex items-center justify-between mb-1 sm:mb-2 px-1">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Checker isPlayer={false} small />
+            <div>
+              <p className="font-display text-xs sm:text-sm font-semibold text-foreground tracking-wide">Opponent</p>
+              <p className="text-[9px] sm:text-[11px] font-body text-muted-foreground">
+                Pip <span className="text-foreground font-semibold">{pipCount.computer}</span>
+                <span className="mx-2 text-border">|</span>
+                Off <span className="text-primary font-semibold">{computerOff}</span>
+              </p>
+            </div>
           </div>
-          <div className="flex-1" />
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-emerald-400 font-body">Off {board.off[0]}</span>
-            <span className="text-[10px] text-muted-foreground font-body">Pip {pipCount(board, "player")}</span>
-            <span className="font-display font-semibold text-foreground">You</span>
-            <div className="w-3.5 h-3.5 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 border border-amber-300" />
+
+          {/* Status */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={message}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              className="text-[10px] sm:text-xs font-body text-muted-foreground text-center max-w-[100px] sm:max-w-[180px] hidden sm:block"
+            >
+              {message}
+            </motion.div>
+          </AnimatePresence>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="text-right">
+              <p className="font-display text-xs sm:text-sm font-semibold text-foreground tracking-wide">You</p>
+              <p className="text-[9px] sm:text-[11px] font-body text-muted-foreground">
+                Off <span className="text-primary font-semibold">{playerOff}</span>
+                <span className="mx-2 text-border">|</span>
+                Pip <span className="text-foreground font-semibold">{pipCount.player}</span>
+              </p>
+            </div>
+            <Checker isPlayer small />
           </div>
         </div>
 
-        {/* Board */}
-        <div className="w-full max-w-[720px] rounded-xl overflow-hidden shadow-2xl border border-amber-900/50"
-          style={{ background: "linear-gradient(135deg, #2C1810 0%, #3D2417 50%, #2C1810 100%)" }}>
-
-          {/* Top row */}
-          <div className="flex">
-            <div className="flex flex-1">{topPts.slice(0, 6).map(i => <Point key={i} idx={i} top />)}</div>
-            <div className="w-10 sm:w-12 flex flex-col items-center justify-start pt-2"
-              style={{ background: "linear-gradient(180deg, #1a0f08, #2a1a10)" }}>
-              <BarCheckers who="computer" />
-            </div>
-            <div className="flex flex-1">{topPts.slice(6).map(i => <Point key={i} idx={i} top />)}</div>
-            <OffTray who="computer" />
-          </div>
-
-          {/* Middle bar / dice */}
-          <div className="flex items-center justify-center gap-2 py-2 sm:py-3"
-            style={{ background: "linear-gradient(90deg, #1a0f08 0%, #2a1a10 50%, #1a0f08 100%)" }}>
-            {dice.length > 0 ? dice.map((d, i) => (
-              <div key={i} className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center
-                font-display font-bold text-lg select-none
-                ${usedDice[i]
-                  ? "bg-gray-700/50 text-gray-500 line-through border border-gray-600/30"
-                  : "bg-gradient-to-br from-gray-100 to-gray-300 text-gray-900 border border-gray-400 shadow-lg"}`}>
-                {d}
-              </div>
-            )) : (
-              <span className="text-xs text-amber-200/40 font-body select-none">
-                {thinking ? "" : (gameOver ? "" : "Roll to begin")}
-              </span>
+        {/* Board frame */}
+        <div ref={boardRef} className="w-full max-w-[900px] rounded-xl sm:rounded-2xl overflow-hidden relative"
+          style={{
+            background: "linear-gradient(145deg, hsl(25, 20%, 14%) 0%, hsl(20, 18%, 8%) 100%)",
+            border: "1.5px solid hsl(38, 40%, 25%)",
+            boxShadow: "0 20px 60px -15px hsl(0 0% 0% / 0.7), inset 0 1px 0 hsl(38, 30%, 25% / 0.3)",
+          }}
+        >
+          {/* Flying piece animation overlay */}
+          <AnimatePresence>
+            {flyingPiece && (
+              <motion.div
+                className="absolute z-50 pointer-events-none"
+                initial={{ left: flyingPiece.fromX - 18, top: flyingPiece.fromY - 18 }}
+                animate={{ left: flyingPiece.toX - 18, top: flyingPiece.toY - 18 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ type: "spring", stiffness: 120, damping: 14, mass: 0.8 }}
+              >
+                <div className="w-9 h-9 rounded-full relative" style={{ filter: "drop-shadow(0 4px 12px hsl(38, 90%, 55% / 0.5))" }}>
+                  <div className={`absolute inset-0 rounded-full ${
+                    flyingPiece.isPlayer
+                      ? "bg-gradient-to-b from-[hsl(38,90%,62%)] to-[hsl(32,85%,40%)]"
+                      : "bg-gradient-to-b from-[hsl(0,0%,82%)] to-[hsl(0,0%,52%)]"
+                  }`} />
+                  <div className={`absolute inset-[3px] rounded-full ${
+                    flyingPiece.isPlayer
+                      ? "bg-gradient-to-br from-[hsl(40,95%,65%)] via-[hsl(38,90%,55%)] to-[hsl(30,80%,42%)]"
+                      : "bg-gradient-to-br from-[hsl(0,0%,88%)] via-[hsl(0,0%,75%)] to-[hsl(0,0%,58%)]"
+                  }`} />
+                  <div className={`absolute inset-[5px] rounded-full ${
+                    flyingPiece.isPlayer
+                      ? "bg-gradient-to-b from-[hsl(42,100%,78%/0.5)] to-transparent"
+                      : "bg-gradient-to-b from-[hsl(0,0%,95%/0.5)] to-transparent"
+                  }`} style={{ height: "40%" }} />
+                </div>
+              </motion.div>
             )}
-            {thinking && <span className="text-xs text-amber-200/50 font-body animate-pulse ml-2">Computer thinking...</span>}
+          </AnimatePresence>
+          {/* Point numbers - top */}
+          <div className="flex px-1 pt-2">
+            <div className="flex-1 flex">
+              {topLeft.map(i => (
+                <div key={i} className="flex-1 text-center">
+                  <span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span>
+                </div>
+              ))}
+            </div>
+            <div className="w-8 sm:w-10 md:w-14" />
+            <div className="flex-1 flex">
+              {topRight.map(i => (
+                <div key={i} className="flex-1 text-center">
+                  <span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Bottom row */}
-          <div className="flex">
-            <div className="flex flex-1">{botPts.slice(0, 6).map(i => <Point key={i} idx={i} top={false} />)}</div>
-            <div className="w-10 sm:w-12 flex flex-col items-center justify-end pb-2"
-              style={{ background: "linear-gradient(180deg, #2a1a10, #1a0f08)" }}>
-              <BarCheckers who="player" />
+          {/* Top half of board */}
+          <div className="flex px-1">
+            <div className="flex-1 flex">
+              {topLeft.map(i => renderPoint(i, true))}
             </div>
-            <div className="flex flex-1">{botPts.slice(6).map(i => <Point key={i} idx={i} top={false} />)}</div>
-            <OffTray who="player" />
+            {/* Bar center */}
+            <div className="w-8 sm:w-10 md:w-14 flex flex-col items-center justify-start gap-0.5 sm:gap-1 pt-2 sm:pt-3"
+              style={{ background: "linear-gradient(180deg, hsl(20, 15%, 7%) 0%, hsl(20, 12%, 10%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}
+            >
+              {Array.from({ length: computerBar }).map((_, j) => (
+                <Checker key={j} isPlayer={false} small />
+              ))}
+            </div>
+            <div className="flex-1 flex">
+              {topRight.map(i => renderPoint(i, true))}
+            </div>
+          </div>
+
+          {/* Center divider with dice */}
+          <div className="flex items-center justify-center gap-2 sm:gap-4 py-2 sm:py-3 mx-1 my-0.5 sm:my-1 rounded-lg"
+            style={{ background: "linear-gradient(90deg, hsl(20, 15%, 7%) 0%, hsl(20, 12%, 10%) 50%, hsl(20, 15%, 7%) 100%)" }}
+          >
+            {DiceIcon1 && DiceIcon2 && (
+              <div className="flex items-center gap-1.5 sm:gap-2.5">
+                <motion.div
+                  key={`d1-${dice[0]}-${Date.now()}`}
+                  initial={{ rotate: -360, scale: 0 }}
+                  animate={{ rotate: 0, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 150, damping: 12 }}
+                  className="w-8 h-8 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-lg sm:rounded-xl flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg, hsl(38, 85%, 58%), hsl(32, 80%, 42%))", boxShadow: "0 4px 12px hsl(0 0% 0% / 0.5), inset 0 1px 2px hsl(45, 100%, 80% / 0.3)" }}
+                >
+                  <DiceIcon1 className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-primary-foreground" />
+                </motion.div>
+                <motion.div
+                  key={`d2-${dice[1]}-${Date.now()}`}
+                  initial={{ rotate: 360, scale: 0 }}
+                  animate={{ rotate: 0, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 150, damping: 12, delay: 0.1 }}
+                  className="w-8 h-8 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-lg sm:rounded-xl flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg, hsl(38, 85%, 58%), hsl(32, 80%, 42%))", boxShadow: "0 4px 12px hsl(0 0% 0% / 0.5), inset 0 1px 2px hsl(45, 100%, 80% / 0.3)" }}
+                >
+                  <DiceIcon2 className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-primary-foreground" />
+                </motion.div>
+              </div>
+            )}
+
+            {movesLeft.length > 0 && gameState === "moving" && (
+              <div className="flex gap-1.5">
+                {movesLeft.map((m, i) => (
+                  <span key={i} className="w-5 h-5 sm:w-7 sm:h-7 rounded-md sm:rounded-lg flex items-center justify-center text-[10px] sm:text-xs font-display font-bold text-primary border border-primary/30"
+                    style={{ background: "hsl(38, 90%, 55% / 0.1)" }}
+                  >
+                    {m}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom half of board */}
+          <div className="flex px-1">
+            <div className="flex-1 flex">
+              {bottomLeft.map(i => renderPoint(i, false))}
+            </div>
+            <div className="w-8 sm:w-10 md:w-14 flex flex-col-reverse items-center justify-start gap-0.5 sm:gap-1 pb-2 sm:pb-3"
+              style={{ background: "linear-gradient(180deg, hsl(20, 12%, 10%) 0%, hsl(20, 15%, 7%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}
+            >
+              {Array.from({ length: playerBar }).map((_, j) => (
+                <Checker key={j} isPlayer small />
+              ))}
+            </div>
+            <div className="flex-1 flex">
+              {bottomRight.map(i => renderPoint(i, false))}
+            </div>
+          </div>
+
+          {/* Point numbers - bottom */}
+          <div className="flex px-1 pb-2">
+            <div className="flex-1 flex">
+              {bottomLeft.map(i => (
+                <div key={i} className="flex-1 text-center">
+                  <span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span>
+                </div>
+              ))}
+            </div>
+            <div className="w-8 sm:w-10 md:w-14" />
+            <div className="flex-1 flex">
+              {bottomRight.map(i => (
+                <div key={i} className="flex-1 text-center">
+                  <span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-3">
-          {!gameOver && turn === "player" && dice.length === 0 && !thinking && (
-            <button onClick={handleRoll}
-              className="px-5 py-2 rounded-lg font-display text-sm font-bold bg-gradient-to-r from-amber-500 to-amber-600
-                text-white shadow-lg hover:from-amber-400 hover:to-amber-500 transition-all hover:scale-105 active:scale-95">
+        <div className="flex items-center gap-2 sm:gap-3 mt-2 sm:mt-4">
+          {gameState === "rolling" && (
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={rollDice}
+              className="px-5 py-2 sm:px-8 sm:py-3 rounded-lg sm:rounded-xl font-display font-semibold text-xs sm:text-sm text-primary-foreground tracking-wide"
+              style={{
+                background: "linear-gradient(135deg, hsl(38, 90%, 55%), hsl(28, 85%, 42%))",
+                boxShadow: "0 6px 24px -4px hsl(38, 90%, 55% / 0.4), inset 0 1px 0 hsl(45, 100%, 80% / 0.2)",
+              }}
+            >
               Roll Dice
-            </button>
+            </motion.button>
           )}
-          <button onClick={newGame}
-            className="px-4 py-2 rounded-lg font-display text-xs font-semibold bg-secondary text-foreground
-              border border-border/30 hover:bg-secondary/80 transition-all">
-            New Game
-          </button>
+
+          {gameState === "moving" && selectedPoint !== null && validTargets.has(24) && (
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={handleBearOff}
+              className="px-4 py-2 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl font-display font-semibold text-xs sm:text-sm text-primary border border-primary/30"
+              style={{ background: "hsl(38, 90%, 55% / 0.1)" }}
+            >
+              Bear Off
+            </motion.button>
+          )}
+
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={resetGame}
+            className="px-3 py-2 sm:px-5 sm:py-3 rounded-lg sm:rounded-xl font-display text-xs sm:text-sm text-muted-foreground border border-border/30 flex items-center gap-1.5 sm:gap-2 hover:text-foreground hover:border-border/50 transition-colors"
+            style={{ background: "hsl(240, 8%, 12%)" }}
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> New Game
+          </motion.button>
         </div>
 
-        {/* Game over banner */}
-        {gameOver && (
-          <div className={`px-6 py-3 rounded-xl border text-center ${
-            gameOver === "player"
-              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-              : "bg-red-500/10 border-red-500/30 text-red-400"}`}>
-            <p className="font-display font-bold text-lg">{gameOver === "player" ? "You Win!" : "Computer Wins!"}</p>
+        {/* Move history */}
+        {moveHistory.length > 0 && (
+          <div className="flex items-center gap-2 mt-3 flex-wrap justify-center">
+            {moveHistory.slice(-4).map((m, i) => (
+              <span key={i} className="text-[10px] font-body text-muted-foreground/50 px-2 py-0.5 rounded-md"
+                style={{ background: "hsl(240, 8%, 10%)" }}
+              >
+                {m}
+              </span>
+            ))}
           </div>
         )}
-
-        {/* Status line */}
-        <p className="text-[11px] font-body text-muted-foreground text-center max-w-md">{log[0]}</p>
       </div>
     </GameLayout>
   );
