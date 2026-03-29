@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Copy, Check, DoorOpen, Plus, Video, User, Crown, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface RoomDialogProps {
   open: boolean;
@@ -15,8 +16,16 @@ const generateCode = () => {
 
 const fakeNames = ["Alex", "Jordan", "Casey", "Morgan", "Riley", "Sam", "Taylor"];
 
+const slugMap: Record<string, string> = {
+  "What Do You Meme": "what-do-you-meme",
+  "UNO": "uno",
+  "Snap": "snap",
+  "War": "war",
+};
+
 const RoomDialog = ({ open, onClose, gameTitle, requiresCamera }: RoomDialogProps) => {
   const [mode, setMode] = useState<"name" | "choose" | "create" | "join" | "lobby">("name");
+  const navigate = useNavigate();
   const [playerName, setPlayerName] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -361,6 +370,11 @@ const RoomDialog = ({ open, onClose, gameTitle, requiresCamera }: RoomDialogProp
                       {isHost ? (
                         <button
                           disabled={lobbyPlayers.length < minPlayers}
+                          onClick={() => {
+                            const slug = slugMap[gameTitle] || gameTitle.toLowerCase().replace(/\s+/g, "-");
+                            handleClose();
+                            navigate(`/play/${slug}`);
+                          }}
                           className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-display font-semibold hover:opacity-90 transition-opacity shadow-glow disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           Start Game
