@@ -212,7 +212,7 @@ const BackgammonGame = () => {
     addLog(`You rolled ${d1} and ${d2}${d1 === d2 ? " -- doubles!" : ""}`);
     if (!anyMoveExists(board, "player", nd)) {
       addLog("No valid moves available. Turn passes.");
-      setTimeout(() => { setDice([]); setUsedDice([]); setTurn("computer"); }, 800);
+      setTimeout(() => { setDice([]); setUsedDice([]); setTurn("computer"); }, 200);
     } else {
       movable.current = computeMovable(board, nd);
     }
@@ -257,7 +257,7 @@ const BackgammonGame = () => {
     const rem = dice.filter((_, i) => !nu[i]);
     if (rem.length === 0 || !anyMoveExists(nb, "player", rem)) {
       if (rem.length > 0) addLog("No more valid moves.");
-      setTimeout(() => { setDice([]); setUsedDice([]); setTurn("computer"); }, 300);
+      setTimeout(() => { setDice([]); setUsedDice([]); setTurn("computer"); }, 100);
     } else {
       movable.current = computeMovable(nb, rem);
     }
@@ -281,7 +281,7 @@ const BackgammonGame = () => {
         setTimeout(() => {
           setDice([]); setUsedDice([]); setTurn("player"); setThinking(false);
           addLog("Your turn -- roll the dice!");
-        }, 600);
+        }, 150);
         return;
       }
 
@@ -304,12 +304,12 @@ const BackgammonGame = () => {
             setTimeout(() => {
               setDice([]); setUsedDice([]); setTurn("player"); setThinking(false);
               addLog("Your turn -- roll the dice!");
-            }, 300);
+            }, 100);
           }
-        }, 500 * (idx + 1));
+        }, 150 * (idx + 1));
         compTimer.current.push(tid);
       });
-    }, 500);
+    }, 200);
     compTimer.current.push(t);
 
     return () => { compTimer.current.forEach(clearTimeout); compTimer.current = []; };
