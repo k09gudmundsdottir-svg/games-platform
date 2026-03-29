@@ -174,11 +174,13 @@ const GameLayout = ({ title, children, sidebar, forceVideoPanel, isSkillGame, en
             <Users className="w-3.5 h-3.5" />
             <span className="text-xs font-body">2 / 2</span>
           </div>
-          {!forceVideoPanel && (
-            <button onClick={() => setVideoPanelOpen(!videoPanelOpen)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-              {videoPanelOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
-            </button>
-          )}
+          <button onClick={() => setVideoPanelOpen(!videoPanelOpen)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              videoPanelOpen ? "bg-primary/15 text-primary border border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-secondary border border-transparent"
+            }`}>
+            <Video className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{videoPanelOpen ? "Hide Video" : "Video & Mic"}</span>
+          </button>
         </div>
       </div>
 
