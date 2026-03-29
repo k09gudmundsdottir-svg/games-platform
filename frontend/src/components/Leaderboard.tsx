@@ -1,15 +1,20 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Trophy, Flame, TrendingUp, Medal, Crown, Award } from "lucide-react";
+import { Trophy, Flame, TrendingUp, Medal, Crown, Award, Target } from "lucide-react";
+
+const gameFilters = ["All", "Chess", "Backgammon", "Checkers", "Connect Four", "UNO", "War", "Snap", "What Do You Meme"];
 
 const leaderboardData = [
-  { rank: 1, name: "DragonSlayer", avatar: "DS", rating: 2847, winStreak: 18, wins: 342, games: "Chess, Checkers", trend: "+12" },
-  { rank: 2, name: "QueenGambit", avatar: "QG", rating: 2791, winStreak: 14, wins: 298, games: "Chess, Backgammon", trend: "+8" },
-  { rank: 3, name: "CardShark99", avatar: "CS", rating: 2683, winStreak: 11, wins: 276, games: "UNO, War", trend: "+15" },
-  { rank: 4, name: "BlitzMaster", avatar: "BM", rating: 2654, winStreak: 9, wins: 251, games: "Chess, Connect Four", trend: "+5" },
-  { rank: 5, name: "MemeQueen", avatar: "MQ", rating: 2598, winStreak: 7, wins: 234, games: "What Do You Meme", trend: "+3" },
-  { rank: 6, name: "NightOwlX", avatar: "NO", rating: 2541, winStreak: 6, wins: 219, games: "Backgammon, Snap", trend: "+10" },
-  { rank: 7, name: "StrategyKing", avatar: "SK", rating: 2487, winStreak: 5, wins: 203, games: "Chess, Checkers", trend: "-2" },
-  { rank: 8, name: "LuckyDraw", avatar: "LD", rating: 2432, winStreak: 4, wins: 198, games: "UNO, War", trend: "+7" },
+  { rank: 1, name: "DragonSlayer", avatar: "DS", rating: 2847, winRate: 78, winStreak: 18, flag: "🇺🇸", games: "Chess" },
+  { rank: 2, name: "QueenGambit", avatar: "QG", rating: 2791, winRate: 74, winStreak: 14, flag: "🇬🇧", games: "Chess" },
+  { rank: 3, name: "CardShark99", avatar: "CS", rating: 2683, winRate: 71, winStreak: 11, flag: "🇨🇦", games: "UNO" },
+  { rank: 4, name: "BlitzMaster", avatar: "BM", rating: 2654, winRate: 69, winStreak: 9, flag: "🇩🇪", games: "Connect Four" },
+  { rank: 5, name: "MemeQueen", avatar: "MQ", rating: 2598, winRate: 67, winStreak: 7, flag: "🇦🇺", games: "What Do You Meme" },
+  { rank: 6, name: "NightOwlX", avatar: "NO", rating: 2541, winRate: 65, winStreak: 6, flag: "🇯🇵", games: "Backgammon" },
+  { rank: 7, name: "StrategyKing", avatar: "SK", rating: 2487, winRate: 63, winStreak: 5, flag: "🇫🇷", games: "Checkers" },
+  { rank: 8, name: "LuckyDraw", avatar: "LD", rating: 2432, winRate: 61, winStreak: 4, flag: "🇧🇷", games: "War" },
+  { rank: 9, name: "SnapMaster", avatar: "SM", rating: 2398, winRate: 59, winStreak: 3, flag: "🇰🇷", games: "Snap" },
+  { rank: 10, name: "DiceKing", avatar: "DK", rating: 2356, winRate: 58, winStreak: 2, flag: "🇮🇳", games: "Backgammon" },
 ];
 
 const getRankIcon = (rank: number) => {
@@ -26,93 +31,81 @@ const getRankStyle = (rank: number) => {
 };
 
 const Leaderboard = () => {
+  const [activeFilter, setActiveFilter] = useState("All");
+
+  const filtered = activeFilter === "All" ? leaderboardData : leaderboardData.filter((p) => p.games === activeFilter);
+
   return (
     <section id="leaderboard" className="py-24 relative">
       <div className="absolute inset-0 bg-gradient-glow opacity-30" />
       <div className="relative container px-4 md:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center mb-12"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-6">
             <Trophy className="w-3.5 h-3.5 text-primary" />
-            <span className="text-xs font-display font-semibold text-primary uppercase tracking-wider">
-              Global Rankings
-            </span>
+            <span className="text-xs font-display font-semibold text-primary uppercase tracking-wider">Global Rankings</span>
           </div>
-          <h2 className="font-display text-3xl md:text-5xl font-bold mb-4">
-            Hall of <span className="text-gradient-gold">Legends</span>
-          </h2>
-          <p className="font-body text-muted-foreground max-w-md mx-auto">
-            The top players across all arenas. Climb the ranks and etch your name in glory.
-          </p>
+          <h2 className="font-display text-3xl md:text-5xl font-bold mb-4">Hall of <span className="text-gradient-gold">Legends</span></h2>
+          <p className="font-body text-muted-foreground max-w-md mx-auto">Top players across all arenas, sorted by ELO. Filter by game to see who dominates.</p>
         </motion.div>
 
-        {/* Leaderboard Table */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="max-w-3xl mx-auto rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm overflow-hidden shadow-card"
-        >
-          {/* Table Header */}
-          <div className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem] md:grid-cols-[3.5rem_1fr_6rem_6rem_5rem] items-center gap-2 px-4 md:px-6 py-3 border-b border-border/30 bg-secondary/30">
+        {/* Game Filter */}
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
+          {gameFilters.map((f) => (
+            <button
+              key={f}
+              onClick={() => setActiveFilter(f)}
+              className={`px-4 py-1.5 rounded-full text-xs font-display font-medium transition-all duration-300 ${
+                activeFilter === f ? "bg-primary text-primary-foreground shadow-glow" : "bg-secondary text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+
+        <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="max-w-3xl mx-auto rounded-2xl border border-border/50 bg-card/80 backdrop-blur-sm overflow-hidden shadow-card">
+          {/* Header */}
+          <div className="grid grid-cols-[3rem_1fr_5rem_4rem_4rem_4rem] md:grid-cols-[3.5rem_1fr_6rem_5rem_5rem_5rem] items-center gap-2 px-4 md:px-6 py-3 border-b border-border/30 bg-secondary/30">
             <span className="text-[10px] font-display font-semibold text-muted-foreground uppercase tracking-wider">#</span>
             <span className="text-[10px] font-display font-semibold text-muted-foreground uppercase tracking-wider">Player</span>
-            <span className="text-[10px] font-display font-semibold text-muted-foreground uppercase tracking-wider text-center">Rating</span>
-            <span className="text-[10px] font-display font-semibold text-muted-foreground uppercase tracking-wider text-center hidden md:block">Wins</span>
+            <span className="text-[10px] font-display font-semibold text-muted-foreground uppercase tracking-wider text-center">ELO</span>
+            <span className="text-[10px] font-display font-semibold text-muted-foreground uppercase tracking-wider text-center hidden md:block">Win %</span>
+            <span className="text-[10px] font-display font-semibold text-muted-foreground uppercase tracking-wider text-center hidden md:block">Game</span>
             <span className="text-[10px] font-display font-semibold text-muted-foreground uppercase tracking-wider text-center">Streak</span>
           </div>
 
           {/* Rows */}
-          {leaderboardData.map((player, i) => (
+          {filtered.map((player, i) => (
             <motion.div
-              key={player.rank}
+              key={player.name}
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: i * 0.06 }}
-              className={`grid grid-cols-[3rem_1fr_5rem_5rem_5rem] md:grid-cols-[3.5rem_1fr_6rem_6rem_5rem] items-center gap-2 px-4 md:px-6 py-3 border-b border-border/10 hover:bg-primary/5 transition-colors duration-200 ${getRankStyle(player.rank)}`}
+              transition={{ delay: i * 0.04 }}
+              className={`grid grid-cols-[3rem_1fr_5rem_4rem_4rem_4rem] md:grid-cols-[3.5rem_1fr_6rem_5rem_5rem_5rem] items-center gap-2 px-4 md:px-6 py-3 border-b border-border/10 hover:bg-primary/5 transition-colors duration-200 ${getRankStyle(player.rank)}`}
             >
-              {/* Rank */}
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg">
-                {getRankIcon(player.rank)}
-              </div>
-
-              {/* Player Info */}
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg">{getRankIcon(player.rank)}</div>
               <div className="flex items-center gap-3 min-w-0">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-display text-xs font-bold shrink-0 ${
-                  player.rank === 1
-                    ? "bg-primary/15 text-primary border border-primary/30"
-                    : "bg-secondary border border-border/30 text-muted-foreground"
-                }`}>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-display text-xs font-bold shrink-0 ${player.rank === 1 ? "bg-primary/15 text-primary border border-primary/30" : "bg-secondary border border-border/30 text-muted-foreground"}`}>
                   {player.avatar}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-display font-semibold text-foreground truncate">{player.name}</p>
-                  <p className="text-[10px] font-body text-muted-foreground truncate hidden md:block">{player.games}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-display font-semibold text-foreground truncate">{player.name}</p>
+                    <span className="text-sm">{player.flag}</span>
+                  </div>
                 </div>
               </div>
-
-              {/* Rating */}
               <div className="text-center">
                 <p className="text-sm font-display font-bold text-foreground">{player.rating.toLocaleString()}</p>
-                <div className="flex items-center justify-center gap-0.5">
-                  <TrendingUp className={`w-2.5 h-2.5 ${player.trend.startsWith("+") ? "text-primary" : "text-destructive"}`} />
-                  <span className={`text-[10px] font-body font-medium ${player.trend.startsWith("+") ? "text-primary" : "text-destructive"}`}>
-                    {player.trend}
-                  </span>
-                </div>
               </div>
-
-              {/* Wins */}
+              <div className="text-center hidden md:flex items-center justify-center gap-1">
+                <Target className="w-3 h-3 text-primary" />
+                <span className="text-xs font-body text-foreground">{player.winRate}%</span>
+              </div>
               <div className="text-center hidden md:block">
-                <p className="text-sm font-display font-medium text-foreground">{player.wins}</p>
+                <p className="text-[10px] font-body text-muted-foreground truncate">{player.games}</p>
               </div>
-
-              {/* Win Streak */}
               <div className="flex items-center justify-center gap-1">
                 <Flame className="w-3.5 h-3.5 text-primary" />
                 <span className="text-sm font-display font-bold text-foreground">{player.winStreak}</span>
@@ -120,7 +113,12 @@ const Leaderboard = () => {
             </motion.div>
           ))}
 
-          {/* View All */}
+          {filtered.length === 0 && (
+            <div className="px-6 py-12 text-center">
+              <p className="text-sm font-body text-muted-foreground">No players found for this game yet.</p>
+            </div>
+          )}
+
           <div className="px-6 py-4 text-center">
             <button className="px-6 py-2 rounded-full text-sm font-display font-medium text-muted-foreground hover:text-foreground bg-secondary hover:bg-secondary/80 border border-border/30 hover:border-primary/20 transition-all duration-300">
               View Full Rankings

@@ -26,7 +26,7 @@ const ConnectFourGame = () => {
   };
 
   return (
-    <GameLayout title="Connect Four">
+    <GameLayout title="Connect Four" isSkillGame>
       <div className="flex flex-col items-center justify-center h-full p-4 gap-4">
         {/* Turn Indicator */}
         <div className="flex items-center gap-2">

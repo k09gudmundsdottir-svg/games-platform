@@ -38,9 +38,9 @@ const HeroSection = () => {
           transition={{ duration: 0.8, delay: 0.35 }}
           className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-[0.95] mb-6"
         >
-          Where Legends
+          Your Next Move
           <br />
-          <span className="text-gradient-gold">Come to Play</span>
+          <span className="text-gradient-gold">Starts Here</span>
         </motion.h1>
 
         <motion.p

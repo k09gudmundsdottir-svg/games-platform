@@ -42,23 +42,9 @@ const MoveHistory = () => (
 
 const ChessGame = () => {
   return (
-    <GameLayout title="Chess" sidebar={<MoveHistory />}>
+    <GameLayout title="Chess" sidebar={<MoveHistory />} isSkillGame>
       <div className="flex items-center justify-center h-full p-4">
         <div className="w-full max-w-[min(90vw,560px)] aspect-square">
-          {/* Player Info Top */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-secondary border border-border/30 flex items-center justify-center">
-              <span className="font-display text-xs font-bold text-muted-foreground">OP</span>
-            </div>
-            <div>
-              <p className="text-sm font-display font-semibold text-foreground">Opponent</p>
-              <p className="text-[10px] font-body text-muted-foreground">Rating: 1850</p>
-            </div>
-            <div className="ml-auto px-3 py-1 rounded-lg bg-secondary border border-border/30">
-              <span className="font-display text-sm font-bold text-foreground">9:42</span>
-            </div>
-          </div>
-
           {/* Board */}
           <div className="grid grid-cols-8 border border-border/30 rounded-lg overflow-hidden shadow-card">
             {initialBoard.map((row, r) =>
@@ -83,19 +69,6 @@ const ChessGame = () => {
             )}
           </div>
 
-          {/* Player Info Bottom */}
-          <div className="flex items-center gap-3 mt-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <span className="font-display text-xs font-bold text-primary">YO</span>
-            </div>
-            <div>
-              <p className="text-sm font-display font-semibold text-foreground">You</p>
-              <p className="text-[10px] font-body text-muted-foreground">Rating: 1720</p>
-            </div>
-            <div className="ml-auto px-3 py-1 rounded-lg bg-primary/10 border border-primary/20">
-              <span className="font-display text-sm font-bold text-primary">10:00</span>
-            </div>
-          </div>
         </div>
       </div>
     </GameLayout>

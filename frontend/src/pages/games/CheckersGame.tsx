@@ -16,7 +16,7 @@ const board = initialBoard();
 
 const CheckersGame = () => {
   return (
-    <GameLayout title="Checkers">
+    <GameLayout title="Checkers" isSkillGame>
       <div className="flex items-center justify-center h-full p-4">
         <div className="w-full max-w-[min(90vw,520px)] aspect-square">
           <div className="grid grid-cols-8 border border-border/30 rounded-lg overflow-hidden shadow-card">
