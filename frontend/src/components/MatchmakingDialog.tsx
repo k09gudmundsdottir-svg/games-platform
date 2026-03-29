@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Search, Link2, Copy, Check, Loader2, Swords } from "lucide-react";
+import { X, Search, Link2, Copy, Check, Loader2, Swords, Monitor } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface MatchmakingDialogProps {
   open: boolean;
   onClose: () => void;
   gameTitle: string;
+  slug?: string;
 }
 
-const MatchmakingDialog = ({ open, onClose, gameTitle }: MatchmakingDialogProps) => {
+const MatchmakingDialog = ({ open, onClose, gameTitle, slug }: MatchmakingDialogProps) => {
   const [mode, setMode] = useState<"choose" | "matchmaking" | "friend-link">("choose");
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
   const friendLink = `https://playvault.app/join/${Math.random().toString(36).substring(2, 10)}`;
@@ -88,6 +91,19 @@ const MatchmakingDialog = ({ open, onClose, gameTitle }: MatchmakingDialogProps)
                       <div className="text-left">
                         <p className="font-display font-semibold text-foreground">Play a Friend</p>
                         <p className="text-xs font-body text-muted-foreground">Share a link — no code needed</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => { handleClose(); navigate(`/play/${slug || gameTitle.toLowerCase()}`); }}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-secondary/50 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 group"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:shadow-glow transition-shadow">
+                        <Monitor className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-display font-semibold text-foreground">Play vs Computer</p>
+                        <p className="text-xs font-body text-muted-foreground">Practice against AI — start instantly</p>
                       </div>
                     </button>
                   </motion.div>

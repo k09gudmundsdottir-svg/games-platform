@@ -92,7 +92,7 @@ const GameCard = ({ title, image, players, duration, rating, category, online, i
       </motion.div>
 
       {isSkillGame ? (
-        <MatchmakingDialog open={matchOpen} onClose={() => setMatchOpen(false)} gameTitle={title} />
+        <MatchmakingDialog open={matchOpen} onClose={() => setMatchOpen(false)} gameTitle={title} slug={slug} />
       ) : (
         <RoomDialog open={roomOpen} onClose={() => setRoomOpen(false)} gameTitle={title} requiresCamera={requiresCamera} />
       )}
