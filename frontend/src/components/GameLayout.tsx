@@ -55,7 +55,7 @@ const VideoPanel = ({ collapsed, onToggle, forced }: { collapsed: boolean; onTog
           </div>
           <div className="flex-1 overflow-hidden">
             <iframe
-              src={`https://video.games.azurenexus.com/${roomName}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&config.disableDeepLinking=true&interfaceConfig.SHOW_CHROME_EXTENSION_BANNER=false&interfaceConfig.MOBILE_APP_PROMO=false&interfaceConfig.HIDE_INVITE_MORE_HEADER=true&interfaceConfig.TOOLBAR_BUTTONS=["microphone","camera","hangup"]`}
+              src={`https://video.games.azurenexus.com/${roomName}#config.prejoinPageEnabled=false&config.p2p.enabled=true&config.p2p.useStunTurn=true&config.useStunTurn=true&config.startWithAudioMuted=false&config.startWithVideoMuted=false&config.disableDeepLinking=true&interfaceConfig.SHOW_CHROME_EXTENSION_BANNER=false&interfaceConfig.MOBILE_APP_PROMO=false&interfaceConfig.HIDE_INVITE_MORE_HEADER=true&interfaceConfig.TOOLBAR_BUTTONS=["microphone","camera","hangup"]`}
               allow="camera; microphone; display-capture"
               className="w-full h-full border-0"
               title="Video Chat"
