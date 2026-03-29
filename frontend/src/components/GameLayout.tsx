@@ -30,15 +30,15 @@ const PlayerBar = ({ name, avatar, elo, flag, isYou, timeLeft }: { name: string;
 );
 
 const VideoPanel = ({ collapsed, onToggle, forced }: { collapsed: boolean; onToggle: () => void; forced?: boolean }) => {
-  const [videoOn, setVideoOn] = useState(true);
-  const [micOn, setMicOn] = useState(true);
+  // Generate a unique room name based on the page URL
+  const roomName = `azurenexus-${window.location.pathname.replace(/\//g, "-").replace(/^-/, "")}`;
 
   return (
     <AnimatePresence>
       {!collapsed && (
         <motion.div
           initial={{ width: 0, opacity: 0 }}
-          animate={{ width: forced ? 320 : 280, opacity: 1 }}
+          animate={{ width: forced ? 360 : 320, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.3 }}
           className="h-full border-l border-border/30 bg-card/50 backdrop-blur-sm flex flex-col shrink-0 overflow-hidden"
@@ -54,35 +54,13 @@ const VideoPanel = ({ collapsed, onToggle, forced }: { collapsed: boolean; onTog
               </button>
             )}
           </div>
-          <div className="flex-1 p-3 space-y-3 overflow-y-auto">
-            <div className="relative aspect-video rounded-xl bg-secondary/80 border border-border/30 overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <span className="font-display text-sm font-bold text-primary">You</span>
-                </div>
-              </div>
-              <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-background/60 backdrop-blur-sm">
-                <span className="text-[10px] font-body text-foreground">You</span>
-              </div>
-            </div>
-            <div className="relative aspect-video rounded-xl bg-secondary/80 border border-border/30 overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-12 h-12 rounded-full bg-secondary border border-border/30 flex items-center justify-center">
-                  <span className="font-display text-sm font-bold text-muted-foreground">?</span>
-                </div>
-              </div>
-              <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-background/60 backdrop-blur-sm">
-                <span className="text-[10px] font-body text-foreground">Opponent</span>
-              </div>
-            </div>
-          </div>
-          <div className="p-3 border-t border-border/20 flex items-center justify-center gap-2">
-            <button onClick={() => setMicOn(!micOn)} className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${micOn ? "bg-secondary text-foreground hover:bg-secondary/80" : "bg-destructive/20 text-destructive"}`}>
-              {micOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-            </button>
-            <button onClick={() => setVideoOn(!videoOn)} className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${videoOn ? "bg-secondary text-foreground hover:bg-secondary/80" : "bg-destructive/20 text-destructive"}`}>
-              {videoOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
-            </button>
+          <div className="flex-1 overflow-hidden">
+            <iframe
+              src={`https://meet.jit.si/${roomName}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&config.disableDeepLinking=true&interfaceConfig.SHOW_CHROME_EXTENSION_BANNER=false&interfaceConfig.MOBILE_APP_PROMO=false&interfaceConfig.HIDE_INVITE_MORE_HEADER=true&interfaceConfig.TOOLBAR_BUTTONS=["microphone","camera","hangup"]`}
+              allow="camera; microphone; display-capture"
+              className="w-full h-full border-0"
+              title="Video Chat"
+            />
           </div>
         </motion.div>
       )}
