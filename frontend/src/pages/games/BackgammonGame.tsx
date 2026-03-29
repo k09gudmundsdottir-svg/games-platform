@@ -187,6 +187,7 @@ const BackgammonGame = () => {
   const [gameOver, setGameOver] = useState<Player | null>(null);
   const [log, setLog] = useState<string[]>(["Your turn -- roll the dice!"]);
   const [thinking, setThinking] = useState(false);
+  const [moveAnim, setMoveAnim] = useState<{ from: number; to: number } | null>(null);
   const movable = useRef<Set<number>>(new Set());
   const compTimer = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -296,13 +297,20 @@ const BackgammonGame = () => {
       const usedArr = cd.map(() => false);
       for (let idx = 0; idx < plan.length; idx++) {
         const [from, to, di] = plan[idx];
-        await new Promise(r => setTimeout(r, 700));
+        // Highlight source briefly
+        setMoveAnim({ from, to: -99 });
+        await new Promise(r => setTimeout(r, 400));
+        // Animate to destination
+        setMoveAnim({ from, to });
+        await new Promise(r => setTimeout(r, 300));
         cur = applyMove(cur, "computer", from, to);
         usedArr[di] = true;
         playPiecePlace();
+        setMoveAnim(null);
         addLog(`Computer: ${fmtFrom(from)} \u2192 ${fmtTo(to)}`);
         setBoard(cloneBoard(cur));
         setUsedDice([...usedArr]);
+        await new Promise(r => setTimeout(r, 200));
 
         const w = winner(cur);
         if (w) {
@@ -322,7 +330,7 @@ const BackgammonGame = () => {
   const newGame = () => {
     compTimer.current.forEach(clearTimeout); compTimer.current = [];
     setBoard(initialBoard()); setTurn("player"); setDice([]); setUsedDice([]);
-    setSelected(null); setValidDests([]); setGameOver(null); setThinking(false);
+    setSelected(null); setValidDests([]); setGameOver(null); setThinking(false); setMoveAnim(null);
     setLog(["Your turn -- roll the dice!"]); movable.current = new Set();
   };
 
@@ -358,12 +366,15 @@ const BackgammonGame = () => {
     const isDest = validDests.includes(idx);
     const col = top ? idx - 12 : 11 - idx;
     const dark = col % 2 === 0;
+    const isAnimFrom = moveAnim?.from === idx;
+    const isAnimTo = moveAnim?.to === idx;
 
     return (
       <div key={idx}
         onClick={isDest ? () => handleMove(idx) : undefined}
         className={`flex-1 flex ${top ? "flex-col items-center pt-0.5" : "flex-col-reverse items-center pb-0.5"}
-          relative min-h-[130px] sm:min-h-[150px] ${isDest ? "cursor-pointer" : ""}`}
+          relative min-h-[130px] sm:min-h-[150px] ${isDest ? "cursor-pointer" : ""}
+          ${isAnimFrom || isAnimTo ? "transition-all duration-300" : ""}`}
       >
         <div className={`absolute ${top ? "top-0" : "bottom-0"} inset-x-0 mx-auto`}
           style={{
@@ -372,8 +383,28 @@ const BackgammonGame = () => {
             background: dark
               ? "linear-gradient(to bottom, #7B5B2E, #5A4220)"
               : "linear-gradient(to bottom, #C9963A, #A67B28)",
-            opacity: isDest ? 1 : 0.65,
+            opacity: isDest ? 1 : isAnimFrom || isAnimTo ? 1 : 0.65,
           }} />
+        {/* Move animation: source glow (red/orange) */}
+        {isAnimFrom && (
+          <div className={`absolute ${top ? "top-0" : "bottom-0"} inset-x-0 mx-auto z-[5]`}
+            style={{
+              width: "100%", height: "115px",
+              clipPath: top ? "polygon(0 0, 100% 0, 50% 100%)" : "polygon(50% 0, 0 100%, 100% 100%)",
+              background: "rgba(251, 191, 36, 0.35)",
+              animation: "pulse 0.6s ease-in-out infinite",
+            }} />
+        )}
+        {/* Move animation: destination glow (green) */}
+        {isAnimTo && (
+          <div className={`absolute ${top ? "top-0" : "bottom-0"} inset-x-0 mx-auto z-[5]`}
+            style={{
+              width: "100%", height: "115px",
+              clipPath: top ? "polygon(0 0, 100% 0, 50% 100%)" : "polygon(50% 0, 0 100%, 100% 100%)",
+              background: "rgba(52, 211, 153, 0.40)",
+              animation: "pulse 0.4s ease-in-out infinite",
+            }} />
+        )}
         {isDest && (
           <div className={`absolute ${top ? "top-0" : "bottom-0"} inset-x-0 mx-auto z-[5]`}
             style={{
