@@ -320,7 +320,7 @@ const ChessGame = () => {
     legalMoves.some(([mr, mc]) => mr === r && mc === c);
 
   return (
-    <GameLayout title="Chess" sidebar={<MoveHistorySidebar moves={moveHistory} />} isSkillGame>
+    <GameLayout title="Chess" sidebar={<MoveHistorySidebar moves={moveHistory} />} isSkillGame enableChat>
       <div className="flex flex-col items-center justify-center h-full p-2 sm:p-4">
         <PlayerBar name="Opponent" isWhite={false} isTop time={blackTime} isActive={gameState.turn === "black"} inCheck={blackInCheck} />
 

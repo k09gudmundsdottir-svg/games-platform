@@ -507,7 +507,7 @@ const BackgammonGame = () => {
   );
 
   return (
-    <GameLayout title="Backgammon" isSkillGame>
+    <GameLayout title="Backgammon" isSkillGame enableChat>
       <div className="flex flex-col items-center justify-center h-full p-1 sm:p-2 md:p-3 gap-1 sm:gap-2">
         {/* Scoreboard */}
         <div className="w-full max-w-[900px] flex items-center justify-between mb-1 sm:mb-2 px-1">
