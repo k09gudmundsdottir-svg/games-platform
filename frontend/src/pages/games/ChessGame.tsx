@@ -233,21 +233,41 @@ const MoveHistorySidebar = ({ moves }: { moves: { num: number; white: string; bl
 );
 
 /* ─── AI Engine (minimax with chess.js) ─── */
-const PIECE_VAL: Record<string, number> = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+// ── Stockfish Engine (Web Worker — never freezes UI) ─────────────
+let stockfishWorker: Worker | null = null;
+let stockfishResolve: ((move: string) => void) | null = null;
 
-const PST: Record<string, number[]> = {
-  p: [0,0,0,0,0,0,0,0, 50,50,50,50,50,50,50,50, 10,10,20,30,30,20,10,10, 5,5,10,25,25,10,5,5, 0,0,0,20,20,0,0,0, 5,-5,-10,0,0,-10,-5,5, 5,10,10,-20,-20,10,10,5, 0,0,0,0,0,0,0,0],
-  n: [-50,-40,-30,-30,-30,-30,-40,-50, -40,-20,0,0,0,0,-20,-40, -30,0,10,15,15,10,0,-30, -30,5,15,20,20,15,5,-30, -30,0,15,20,20,15,0,-30, -30,5,10,15,15,10,5,-30, -40,-20,0,5,5,0,-20,-40, -50,-40,-30,-30,-30,-30,-40,-50],
-  b: [-20,-10,-10,-10,-10,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,10,10,10,10,0,-10, -10,5,5,10,10,5,5,-10, -10,0,10,10,10,10,0,-10, -10,10,10,10,10,10,10,-10, -10,5,0,0,0,0,5,-10, -20,-10,-10,-10,-10,-10,-10,-20],
-  r: [0,0,0,0,0,0,0,0, 5,10,10,10,10,10,10,5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, 0,0,0,5,5,0,0,0],
-  q: [-20,-10,-10,-5,-5,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,5,5,5,5,0,-10, -5,0,5,5,5,5,0,-5, 0,0,5,5,5,5,0,-5, -10,5,5,5,5,5,0,-10, -10,0,5,0,0,0,0,-10, -20,-10,-10,-5,-5,-10,-10,-20],
-  k: [-30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -20,-30,-30,-40,-40,-30,-30,-20, -10,-20,-20,-20,-20,-20,-20,-10, 20,20,0,0,0,0,20,20, 20,30,10,0,0,10,30,20],
+const initStockfish = (): Worker => {
+  if (stockfishWorker) return stockfishWorker;
+  stockfishWorker = new Worker("https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js");
+  stockfishWorker.postMessage("uci");
+  stockfishWorker.postMessage("setoption name Skill Level value 15"); // 0-20, 15 = strong club player
+  stockfishWorker.postMessage("isready");
+  stockfishWorker.onmessage = (e) => {
+    const msg = e.data as string;
+    if (msg.startsWith("bestmove") && stockfishResolve) {
+      const best = msg.split(" ")[1];
+      stockfishResolve(best);
+      stockfishResolve = null;
+    }
+  };
+  return stockfishWorker;
 };
 
-const getPstValue = (type: string, color: "w" | "b", r: number, c: number): number => {
-  const idx = color === "w" ? (7 - r) * 8 + c : r * 8 + c;
-  return PST[type]?.[idx] || 0;
+const getStockfishMove = (fen: string, thinkTimeMs = 1000): Promise<string> => {
+  return new Promise((resolve) => {
+    const worker = initStockfish();
+    stockfishResolve = resolve;
+    worker.postMessage(`position fen ${fen}`);
+    worker.postMessage(`go movetime ${thinkTimeMs}`);
+    // Safety timeout
+    setTimeout(() => { if (stockfishResolve) { stockfishResolve(""); stockfishResolve = null; } }, thinkTimeMs + 2000);
+  });
 };
+
+const PIECE_VAL_UNUSED = 0; // kept for type compat
+
+// PST removed — Stockfish handles evaluation
 
 const evaluatePosition = (chess: Chess): number => {
   let score = 0;
@@ -412,23 +432,21 @@ const minimax = (chess: Chess, depth: number, alpha: number, beta: number, maxim
   }
 };
 
-const getComputerMove = (chess: Chess): Move | null => {
-  const moves = orderMoves(chess.moves({ verbose: true }));
+const getComputerMove = async (chess: Chess): Promise<Move | null> => {
+  const moves = chess.moves({ verbose: true });
   if (moves.length === 0) return null;
-
-  nodeCount = 0;
-  let bestMove = moves[0];
-  let bestScore = Infinity; // Computer is black (minimizing)
-  for (const move of moves) {
-    chess.move(move);
-    const score = minimax(chess, 4, -Infinity, Infinity, true);
-    chess.undo();
-    if (score < bestScore) {
-      bestScore = score;
-      bestMove = move;
+  try {
+    const bestUci = await getStockfishMove(chess.fen(), 1500);
+    if (bestUci && bestUci.length >= 4) {
+      const from = bestUci.slice(0, 2);
+      const to = bestUci.slice(2, 4);
+      const promotion = bestUci.length > 4 ? bestUci[4] : undefined;
+      const match = moves.find(m => m.from === from && m.to === to && (!promotion || m.promotion === promotion));
+      if (match) return match;
     }
-  }
-  return bestMove;
+  } catch {}
+  // Fallback: random move
+  return moves[Math.floor(Math.random() * moves.length)];
 };
 
 const getHintMove = (chess: Chess): { move: Move; reason: string } | null => {
@@ -598,13 +616,16 @@ const ChessGame = () => {
   // Computer AI move (black)
   useEffect(() => {
     if (chess.turn() !== "b" || gameOver || !timeSelected) return;
-    const timer = setTimeout(() => {
+    let cancelled = false;
+    const run = async () => {
       try {
-        const move = getComputerMove(chess);
+        const move = await getComputerMove(chess);
+        if (cancelled) return;
         if (move) {
           executeMove(move.from as Square, move.to as Square, move.promotion);
         }
       } catch (e) {
+        if (cancelled) return;
         console.error("AI error:", e);
         const fallbackMoves = chess.moves({ verbose: true });
         if (fallbackMoves.length > 0) {
@@ -612,8 +633,9 @@ const ChessGame = () => {
           executeMove(fm.from as Square, fm.to as Square, fm.promotion);
         }
       }
-    }, 500);
-    return () => clearTimeout(timer);
+    };
+    run();
+    return () => { cancelled = true; };
   }, [fen, gameOver, timeSelected]);
 
   const handleSquareClick = (r: number, c: number) => {
