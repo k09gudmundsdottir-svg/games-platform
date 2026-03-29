@@ -49,11 +49,9 @@ const VideoPanel = ({ collapsed, onToggle, forced }: { collapsed: boolean; onTog
               <Video className="w-4 h-4 text-primary" />
               <span className="text-xs font-display font-semibold text-foreground">{forced ? "Video Chat" : "Voice / Video"}</span>
             </div>
-            {!forced && (
-              <button onClick={onToggle} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-                <PanelRightClose className="w-4 h-4" />
-              </button>
-            )}
+            <button onClick={onToggle} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors" title="Close video">
+              <PanelRightClose className="w-4 h-4" />
+            </button>
           </div>
           <div className="flex-1 overflow-hidden">
             <iframe
