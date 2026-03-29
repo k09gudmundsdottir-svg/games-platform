@@ -79,10 +79,9 @@ const HeroSection = () => {
           className="flex items-center justify-center gap-8 md:gap-16 mt-16 pt-8 border-t border-border/30"
         >
           {[
-            { value: "2.4M+", label: "Active Players" },
-            { value: "8", label: "Classic Games" },
-            { value: "50K+", label: "Daily Matches" },
-            { value: "99.9%", label: "Uptime" },
+            { value: "11", label: "Games" },
+            { value: "vs AI", label: "Play Instantly" },
+            { value: "Free", label: "No Sign-up Required" },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <div className="font-display text-xl md:text-2xl font-bold text-gradient-gold">
