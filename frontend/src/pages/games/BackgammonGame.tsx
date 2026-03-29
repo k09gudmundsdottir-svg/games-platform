@@ -194,12 +194,7 @@ const BackgammonGame = () => {
     };
 
     if (fromPos && toPos) {
-      // Remove piece from source immediately for visual consistency
-      if (from !== -1) { newBoard[from]--; setBoard([...newBoard]); newBoard[from]++; }
-      setTimeout(() => {
-        if (from !== -1) newBoard[from]++; // restore for proper applyMove
-        applyMove();
-      }, 350);
+      setTimeout(() => applyMove(), 350);
     } else {
       applyMove();
     }
