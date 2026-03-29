@@ -326,7 +326,7 @@ const evaluatePosition = (chess: Chess): number => {
 };
 
 let nodeCount = 0;
-const MAX_NODES = 200000;
+const MAX_NODES = 80000;
 
 const orderMoves = (moves: Move[]): Move[] => {
   return moves.sort((a, b) => {
