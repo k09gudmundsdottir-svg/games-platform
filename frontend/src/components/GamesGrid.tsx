@@ -30,7 +30,7 @@ const GamesGrid = () => {
   const filtered = active === "All" ? games : games.filter((g) => g.category === active);
 
   return (
-    <section id="games" className="py-24 relative">
+    <section id="games-grid" className="py-24 relative">
       <div className="absolute inset-0 bg-gradient-glow opacity-50" />
       <div className="relative container px-4 md:px-8">
         <motion.div

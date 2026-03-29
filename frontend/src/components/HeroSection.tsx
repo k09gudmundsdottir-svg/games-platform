@@ -59,11 +59,13 @@ const HeroSection = () => {
           transition={{ duration: 0.8, delay: 0.65 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
-          <button className="group flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-display font-semibold text-sm shadow-glow hover:opacity-90 transition-all">
+          <button onClick={() => document.getElementById("games-grid")?.scrollIntoView({ behavior: "smooth" })}
+            className="group flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-display font-semibold text-sm shadow-glow hover:opacity-90 transition-all">
             <Play className="w-4 h-4 group-hover:scale-110 transition-transform" />
             Start Playing Free
           </button>
-          <button className="flex items-center gap-2.5 px-8 py-3.5 rounded-xl border border-border bg-secondary/50 text-secondary-foreground font-display font-medium text-sm hover:bg-secondary transition-colors">
+          <button onClick={() => document.getElementById("games-grid")?.scrollIntoView({ behavior: "smooth" })}
+            className="flex items-center gap-2.5 px-8 py-3.5 rounded-xl border border-border bg-secondary/50 text-secondary-foreground font-display font-medium text-sm hover:bg-secondary transition-colors">
             <Users className="w-4 h-4" />
             Browse Games
           </button>
