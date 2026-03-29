@@ -15,7 +15,7 @@ const MatchmakingDialog = ({ open, onClose, gameTitle, slug }: MatchmakingDialog
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
-  const friendLink = `https://playvault.app/join/${Math.random().toString(36).substring(2, 10)}`;
+  const friendLink = `https://games.azurenexus.com/play/${slug || gameTitle.toLowerCase()}-online`;
 
   useEffect(() => {
     if (mode !== "matchmaking") { setSearchTime(0); return; }

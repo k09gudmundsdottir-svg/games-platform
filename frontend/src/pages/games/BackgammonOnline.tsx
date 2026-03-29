@@ -46,6 +46,13 @@ const BackgammonOnline = () => {
   const [opponentName, setOpponentName] = useState("");
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   // Game state
   const [board, setBoard] = useState<number[]>([...INITIAL_BOARD]);
   const [dice, setDice] = useState<number[]>([]);
@@ -106,6 +113,12 @@ const BackgammonOnline = () => {
         setWinner(payload.winner);
         setPhase("gameover");
       }
+    });
+
+    channel.on("broadcast", { event: "chat-msg" }, ({ payload }) => {
+      const msg = { sender: payload.sender, text: payload.text, time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) };
+      setChatMessages(prev => [...prev, msg]);
+      setChatOpen(open => { if (!open) setUnread(u => u + 1); return open; });
     });
 
     channel.on("broadcast", { event: "start-game" }, () => {
@@ -477,6 +490,52 @@ const BackgammonOnline = () => {
 
   // ── Rendering ──
 
+  const sendChat = () => {
+    if (!chatInput.trim() || !channelRef.current) return;
+    const msg = { sender: playerName, text: chatInput.trim(), time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) };
+    setChatMessages(prev => [...prev, msg]);
+    channelRef.current.send({ type: "broadcast", event: "chat-msg", payload: { sender: playerName, text: chatInput.trim() } });
+    setChatInput("");
+  };
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages]);
+
+  const ChatBubble = () => (
+    <>
+      <button onClick={() => { setChatOpen(!chatOpen); if (!chatOpen) setUnread(0); }}
+        className="fixed bottom-4 right-4 z-50 w-11 h-11 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-primary hover:bg-primary/25 transition-all shadow-lg">
+        <span className="text-lg">💬</span>
+        {unread > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">{unread}</span>}
+      </button>
+      {chatOpen && (
+        <div className="fixed bottom-20 right-4 z-50 w-72 h-96 rounded-2xl border border-border/50 bg-card shadow-2xl flex flex-col overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-border/30 flex items-center justify-between">
+            <span className="text-xs font-semibold text-foreground">💬 Chat with {opponentName || "opponent"}</span>
+            <button onClick={() => setChatOpen(false)} className="text-muted-foreground hover:text-foreground text-xs">✕</button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {chatMessages.map((msg, i) => (
+              <div key={i} className={`flex flex-col ${msg.sender === playerName ? "items-end" : "items-start"}`}>
+                <div className={`max-w-[85%] px-3 py-1.5 rounded-xl text-xs ${
+                  msg.sender === playerName ? "bg-primary/15 text-foreground rounded-br-sm" : "bg-secondary/80 text-foreground rounded-bl-sm"
+                }`}>{msg.text}</div>
+                <span className="text-[9px] text-muted-foreground mt-0.5 px-1">{msg.sender} · {msg.time}</span>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+          <div className="p-2 border-t border-border/30 flex gap-2">
+            <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && sendChat()}
+              placeholder="Type a message..." className="flex-1 px-3 py-1.5 rounded-lg bg-secondary/50 border border-border/30 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/30" />
+            <button onClick={sendChat} className="w-7 h-7 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-primary hover:bg-primary/25">
+              <span className="text-xs">➤</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   const Checker = ({ isPlayerGold, isSelected, isSelectable, small, dimmed }: {
     isPlayerGold: boolean; isSelected?: boolean; isSelectable?: boolean; small?: boolean; dimmed?: boolean;
   }) => {
@@ -576,7 +635,7 @@ const BackgammonOnline = () => {
 
   if (phase === "lobby" && !roomCode) {
     return (
-      <GameLayout title="Backgammon Online" enableChat>
+      <GameLayout title="Backgammon Online" >
         <div className="flex items-center justify-center h-full p-4">
           <div className="w-full max-w-md space-y-6">
             <div className="text-center space-y-2">
@@ -622,7 +681,7 @@ const BackgammonOnline = () => {
 
   if (phase === "lobby" && roomCode) {
     return (
-      <GameLayout title="Backgammon Online" enableChat>
+      <GameLayout title="Backgammon Online" >
         <div className="flex items-center justify-center h-full p-4">
           <div className="w-full max-w-md space-y-6 text-center">
             <div className="space-y-2">
@@ -660,7 +719,7 @@ const BackgammonOnline = () => {
   const oppLabel = opponentName || (isGold ? "Silver" : "Gold");
 
   return (
-    <GameLayout title="Backgammon Online" enableChat>
+    <GameLayout title="Backgammon Online" >
       <div className="flex flex-col items-center justify-center h-full p-1 sm:p-2 md:p-3 gap-1 sm:gap-2">
         {/* Scoreboard */}
         <div className="w-full max-w-[900px] flex items-center justify-between mb-1 sm:mb-2 px-1">
@@ -791,6 +850,7 @@ const BackgammonOnline = () => {
           <p className="text-xs text-muted-foreground font-body mt-2 animate-pulse">Waiting for {oppLabel} to roll...</p>
         )}
       </div>
+      {phase === "playing" && <ChatBubble />}
     </GameLayout>
   );
 };
