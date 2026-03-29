@@ -239,21 +239,23 @@ let stockfishResolve: ((move: string) => void) | null = null;
 
 const initStockfish = (): Worker => {
   if (stockfishWorker) return stockfishWorker;
-  // Web Workers require same-origin — use blob URL to load cross-origin script
-  const workerCode = `importScripts("https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js");`;
-  const blob = new Blob([workerCode], { type: "application/javascript" });
-  stockfishWorker = new Worker(URL.createObjectURL(blob));
-  stockfishWorker.postMessage("uci");
-  stockfishWorker.postMessage("setoption name Skill Level value 18"); // 0-20, 18 = very strong
-  stockfishWorker.postMessage("isready");
+  // Load from same origin — no CORS issues
+  stockfishWorker = new Worker("/stockfish.js");
   stockfishWorker.onmessage = (e) => {
     const msg = e.data as string;
+    if (typeof msg !== "string") return;
     if (msg.startsWith("bestmove") && stockfishResolve) {
       const best = msg.split(" ")[1];
       stockfishResolve(best);
       stockfishResolve = null;
     }
   };
+  stockfishWorker.onerror = (e) => {
+    console.error("Stockfish error:", e);
+  };
+  stockfishWorker.postMessage("uci");
+  stockfishWorker.postMessage("setoption name Skill Level value 20"); // Maximum strength
+  stockfishWorker.postMessage("isready");
   return stockfishWorker;
 };
 
