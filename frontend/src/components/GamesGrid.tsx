@@ -16,11 +16,14 @@ const categories = ["All", "Board", "Card", "Party"];
 const games = [
   { title: "Chess", image: gameChess, players: "2", duration: "10-60 min", rating: 4.9, category: "Board", online: 12847, requiresCamera: false, slug: "chess" },
   { title: "Backgammon", image: gameBackgammon, players: "2", duration: "10-30 min", rating: 4.7, category: "Board", online: 3291, requiresCamera: false, slug: "backgammon" },
+  { title: "Hearts", image: gameSnap, players: "4", duration: "15-30 min", rating: 4.8, category: "Card", online: 8432, requiresCamera: false, slug: "hearts" },
+  { title: "Gin Rummy", image: gameWar, players: "2", duration: "10-20 min", rating: 4.7, category: "Card", online: 5219, requiresCamera: false, slug: "gin-rummy" },
+  { title: "Solitaire", image: gameUno, players: "1", duration: "5-15 min", rating: 4.6, category: "Card", online: 24561, requiresCamera: false, slug: "solitaire" },
   { title: "Checkers", image: gameCheckers, players: "2", duration: "10-30 min", rating: 4.6, category: "Board", online: 2764, requiresCamera: false, slug: "checkers" },
   { title: "Connect Four", image: gameConnect4, players: "2", duration: "5-15 min", rating: 4.5, category: "Board", online: 1983, requiresCamera: false, slug: "connect-four" },
   { title: "UNO", image: gameUno, players: "2-8", duration: "10-25 min", rating: 4.8, category: "Card", online: 6153, requiresCamera: false, slug: "uno" },
-  { title: "War", image: gameWar, players: "2-4", duration: "15-30 min", rating: 4.3, category: "Card", online: 2104, requiresCamera: false, slug: "war" },
-  { title: "Snap", image: gameSnap, players: "2-6", duration: "5-15 min", rating: 4.4, category: "Card", online: 1876, requiresCamera: false, slug: "snap" },
+  { title: "War", image: gameWar, players: "2", duration: "15-30 min", rating: 4.3, category: "Card", online: 2104, requiresCamera: false, slug: "war" },
+  { title: "Snap", image: gameSnap, players: "1", duration: "5-15 min", rating: 4.4, category: "Card", online: 1876, requiresCamera: false, slug: "snap" },
   { title: "What Do You Meme", image: gameMeme, players: "3-8", duration: "20-45 min", rating: 4.7, category: "Party", online: 4521, requiresCamera: true, slug: "what-do-you-meme" },
 ];
 

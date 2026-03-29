@@ -19,7 +19,7 @@ interface GameCardProps {
   slug: string;
 }
 
-const skillGames = ["Chess", "Backgammon", "Checkers", "Connect Four"];
+const skillGames = ["Chess", "Backgammon", "Checkers", "Connect Four", "Hearts", "Gin Rummy", "Solitaire"];
 
 const GameCard = ({ title, image, players, duration, rating, category, online, index, requiresCamera, slug }: GameCardProps) => {
   const [roomOpen, setRoomOpen] = useState(false);
