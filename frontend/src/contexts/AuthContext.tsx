@@ -25,7 +25,7 @@ export interface UserProfile {
 interface AuthContextType {
   user: UserProfile | null;
   isLoggedIn: boolean;
-  login: (method: "google" | "email", email?: string) => void;
+  login: (method: "google" | "email" | "signup", email?: string, password?: string) => Promise<string | null>;
   logout: () => void;
   loading: boolean;
 }
@@ -59,7 +59,7 @@ function buildProfile(user: any): UserProfile {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoggedIn: false,
-  login: () => {},
+  login: async () => null,
   logout: () => {},
   loading: true,
 });
@@ -90,16 +90,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (method: "google" | "email", email?: string) => {
+  const login = async (method: "google" | "email" | "signup", email?: string, password?: string) => {
     if (method === "google") {
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: window.location.origin },
       });
-    } else if (method === "email" && email) {
-      // Magic link
-      await supabase.auth.signInWithOtp({ email });
+    } else if (method === "signup" && email && password) {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) return error.message;
+      return null;
+    } else if (method === "email" && email && password) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return error.message;
+      return null;
     }
+    return null;
   };
 
   const logout = async () => {

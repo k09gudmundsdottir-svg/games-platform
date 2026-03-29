@@ -9,18 +9,28 @@ const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login("email", email);
-    navigate("/");
+    setError(""); setSuccess(""); setLoading(true);
+    if (mode === "signup") {
+      if (password.length < 6) { setError("Password must be at least 6 characters"); setLoading(false); return; }
+      const err = await login("signup", email, password);
+      if (err) { setError(err); } else { setSuccess("Account created! Check your email to confirm, then sign in."); setMode("login"); }
+    } else {
+      const err = await login("email", email, password);
+      if (err) { setError(err); } else { navigate("/"); }
+    }
+    setLoading(false);
   };
 
   const handleGoogle = () => {
     login("google");
-    navigate("/");
   };
 
   return (
@@ -76,6 +86,9 @@ const LoginPage = () => {
             <div className="flex-1 h-px bg-border/50" />
           </div>
 
+          {error && <p className="text-sm text-center p-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20">{error}</p>}
+          {success && <p className="text-sm text-center p-2 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20">{success}</p>}
+
           {/* Email/Password Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="relative">
@@ -108,9 +121,10 @@ const LoginPage = () => {
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-display font-semibold text-sm hover:opacity-90 transition-opacity shadow-glow"
+              disabled={loading}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-display font-semibold text-sm hover:opacity-90 transition-opacity shadow-glow disabled:opacity-50"
             >
-              {mode === "login" ? "Sign In" : "Create Account"}
+              {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
             </button>
           </form>
 
