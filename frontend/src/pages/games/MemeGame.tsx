@@ -508,12 +508,14 @@ const MemeGame = () => {
   }, [players, isPlayerJudge]);
 
   // AI auto-submit for picking/waiting phase
+  const aiSubmitRef = useRef(false);
   useEffect(() => {
     if (players.length === 0) return;
     if (phase !== "picking" && phase !== "waiting") return;
+    if (aiSubmitRef.current) return;
+    aiSubmitRef.current = true;
 
     const nonJudgeAI = aiPlayers.filter((p) => p.name !== players[judgeIndex]?.name);
-    if (aiSubmitCount >= nonJudgeAI.length) return;
 
     const timers = nonJudgeAI.map((aiP, idx) => {
       const delay = 1000 + Math.random() * 2000 + idx * 800;
@@ -524,13 +526,12 @@ const MemeGame = () => {
           if (prev.find((s) => s.player === aiP.name)) return prev;
           return [...prev, { player: aiP.name, caption }];
         });
-        setAiSubmitCount((c) => c + 1);
         playCardFlip();
       }, delay);
     });
 
     return () => timers.forEach(clearTimeout);
-  }, [phase, players, judgeIndex, aiSubmitCount]);
+  }, [phase, players, judgeIndex]);
 
   // Check if all submissions are in to move to reveal
   const totalNonJudge = players.length > 0 ? players.filter((_, i) => i !== judgeIndex).length : 0;
@@ -640,10 +641,10 @@ const MemeGame = () => {
     setRound(nextRound);
     setSelectedCard(null);
     setSubmissions([]);
-    setAiSubmitCount(0);
     setFlippedCards(new Set());
     setWinnerSub(null);
     setPlayerSubmitted(false);
+    aiSubmitRef.current = false;
 
     const nextIsPlayerJudge = players[nextJudge]?.name === "You";
     setPhase(nextIsPlayerJudge ? "waiting" : "picking");
@@ -662,10 +663,10 @@ const MemeGame = () => {
     setRound(1);
     setSelectedCard(null);
     setSubmissions([]);
-    setAiSubmitCount(0);
     setFlippedCards(new Set());
     setWinnerSub(null);
     setPlayerSubmitted(false);
+    aiSubmitRef.current = false;
     setPhase(state.players[state.judgeIndex].name === "You" ? "waiting" : "picking");
     playCardShuffle();
   }, []);
