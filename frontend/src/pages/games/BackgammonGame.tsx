@@ -243,16 +243,18 @@ const BackgammonGame = () => {
   const computerTurn = () => {
     setGameState("computer");
     setMessage("Opponent's turn...");
+    setDice([]); // Clear player's dice first
     const runComputer = async () => {
       await new Promise(r => setTimeout(r, 800));
       const cd1 = Math.ceil(Math.random() * 6);
       const cd2 = Math.ceil(Math.random() * 6);
       const cMoves = cd1 === cd2 ? [cd1, cd1, cd1, cd1] : [cd1, cd2];
+      playDiceRoll();
       setDice([cd1, cd2]);
       setMessage(`Opponent rolled ${cd1} and ${cd2}${cd1 === cd2 ? " — doubles!" : ""}`);
 
       // Pause to let player see the dice
-      await new Promise(r => setTimeout(r, 1200));
+      await new Promise(r => setTimeout(r, 2000));
 
       let currentBoard = [...board];
       let curBar = computerBar;
@@ -346,6 +348,7 @@ const BackgammonGame = () => {
       }
 
       await new Promise(r => setTimeout(r, 500));
+      setDice([]);
       setGameState("rolling");
       setMessage("Your turn — roll");
     };
