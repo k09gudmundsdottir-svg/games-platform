@@ -24,14 +24,14 @@ const PIECE_IMAGES: Record<string, string> = {
 };
 
 /* ─── Chess.com board colors ─── */
-const LIGHT_SQ = "#ebecd0";
-const DARK_SQ = "#779556";
-const LIGHT_LABEL = "#ebecd0";
-const DARK_LABEL = "#779556";
-const LAST_MOVE_LIGHT = "#f5f682";
-const LAST_MOVE_DARK = "#bbcc44";
-const SELECTED_LIGHT = "#f5f682";
-const SELECTED_DARK = "#bbcc44";
+const LIGHT_SQ = "#f0d9b5";
+const DARK_SQ = "#b58863";
+const LIGHT_LABEL = "#f0d9b5";
+const DARK_LABEL = "#b58863";
+const LAST_MOVE_LIGHT = "#f7ec59";
+const LAST_MOVE_DARK = "#dbc34d";
+const SELECTED_LIGHT = "#f7ec59";
+const SELECTED_DARK = "#dbc34d";
 
 const fileLabels = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const rankLabels = ["8", "7", "6", "5", "4", "3", "2", "1"];
