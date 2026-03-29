@@ -10,6 +10,7 @@ services:
       - ENABLE_AUTH=0
       - ENABLE_GUESTS=1
       - ENABLE_LOBBY=0
+      - ENABLE_P2P=true
       - PUBLIC_URL=https://video.games.azurenexus.com
       - TZ=UTC
       - XMPP_AUTH_DOMAIN=auth.meet.jitsi
@@ -18,9 +19,17 @@ services:
       - XMPP_MUC_DOMAIN=muc.meet.jitsi
       - XMPP_RECORDER_DOMAIN=recorder.meet.jitsi
       - JICOFO_AUTH_USER=focus
+      - ENABLE_OXXS_STUN=1
+      - OXXS_STUN_SERVERS=stun:204.168.189.51:3478
+      - TURN_CREDENTIALS=azurenexus2026turn
+      - TURN_HOST=204.168.189.51
+      - TURN_PORT=3478
+      - TURNS_PORT=5349
+      - TURN_TRANSPORT=udp
     volumes:
       - jitsi-web:/config
       - jitsi-transcripts:/usr/share/jitsi-meet/transcripts
+      - ./custom-config.js:/config/custom-config.js:ro
     networks:
       - jitsi
 
