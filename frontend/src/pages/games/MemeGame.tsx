@@ -6,6 +6,32 @@ import { GripVertical, Crown, Award, Medal } from "lucide-react";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/700.css";
 
+const MEME_TEMPLATES = [
+  { id: "181913649", name: "Drake Hotline Bling" },
+  { id: "112126428", name: "Distracted Boyfriend" },
+  { id: "87743020", name: "Two Buttons" },
+  { id: "102156234", name: "Mocking SpongeBob" },
+  { id: "97984", name: "Disaster Girl" },
+  { id: "438680", name: "Batman Slapping Robin" },
+  { id: "93895088", name: "Expanding Brain" },
+  { id: "124822590", name: "Left Exit 12 Off Ramp" },
+  { id: "217743513", name: "UNO Draw 25" },
+  { id: "131087935", name: "Running Away Balloon" },
+  { id: "222403160", name: "Bernie Mittens" },
+  { id: "252600902", name: "Always Has Been" },
+  { id: "4087833", name: "Waiting Skeleton" },
+  { id: "61579", name: "One Does Not Simply" },
+  { id: "101470", name: "Ancient Aliens" },
+  { id: "89370399", name: "Roll Safe" },
+  { id: "119139145", name: "Blank Nut Button" },
+  { id: "61520", name: "Futurama Fry" },
+  { id: "27813981", name: "Hide the Pain Harold" },
+  { id: "188390779", name: "Panik Kalm Panik" },
+];
+
+const getRandomMeme = () => MEME_TEMPLATES[Math.floor(Math.random() * MEME_TEMPLATES.length)];
+const memeUrl = (id: string) => `https://i.imgflip.com/${id}.jpg`;
+
 const captionCards = [
   "When you realize it's Monday tomorrow",
   "Me trying to adult",
@@ -14,6 +40,14 @@ const captionCards = [
   "My face during meetings",
   "Expectations vs. Reality",
   "When WiFi disconnects for 2 seconds",
+  "POV: You forgot to save",
+  "When the code compiles on first try",
+  "Me pretending to understand the meeting",
+  "My browser tabs vs my RAM",
+  "When you hear your own voice on a recording",
+  "The group chat at 3 AM",
+  "When autocorrect ruins everything",
+  "My weekend plans vs reality",
 ];
 
 // Simulated submissions from other players
@@ -442,6 +476,7 @@ type Phase = "picking" | "reveal" | "judging" | "winner";
 const MemeGame = () => {
   const [selectedCard, setSelectedCard] = useState<number | null>(null);
   const [phase, setPhase] = useState<Phase>("picking");
+  const [currentMeme, setCurrentMeme] = useState(getRandomMeme());
   const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
   const [winnerRevealed, setWinnerRevealed] = useState(false);
   const [rankedCaptions, setRankedCaptions] = useState<typeof submittedCaptions>([]);
@@ -491,6 +526,7 @@ const MemeGame = () => {
     setFlippedCards(new Set());
     setWinnerRevealed(false);
     setRankedCaptions([]);
+    setCurrentMeme(getRandomMeme());
   };
 
   // The winner is always rank 0 in the judge's ordering
@@ -514,15 +550,10 @@ const MemeGame = () => {
               {phase === "picking" && (
                 <motion.div key="meme" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   <div className="relative rounded-xl border-2 border-border/30 overflow-hidden shadow-card-hover bg-secondary">
-                    <div className="aspect-square flex items-center justify-center bg-gradient-to-br from-secondary to-secondary/60">
-                      <div className="text-center p-6">
-                        <span className="text-6xl mb-4 block">😂</span>
-                        <p className="font-display text-lg font-bold text-foreground">Meme Image</p>
-                        <p className="text-xs font-body text-muted-foreground mt-1">The meme image would appear here</p>
-                      </div>
-                    </div>
-                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
-                      <span className="text-[10px] font-display font-semibold text-primary">MEME</span>
+                    <img src={memeUrl(currentMeme.id)} alt={currentMeme.name}
+                      className="w-full aspect-square object-contain bg-white" />
+                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-background/70 backdrop-blur-sm border border-border/30">
+                      <span className="text-[10px] font-display font-semibold text-foreground">{currentMeme.name}</span>
                     </div>
                   </div>
                 </motion.div>
