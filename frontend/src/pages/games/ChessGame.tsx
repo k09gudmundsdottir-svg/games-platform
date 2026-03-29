@@ -235,85 +235,172 @@ const MoveHistorySidebar = ({ moves }: { moves: { num: number; white: string; bl
 );
 
 /* ─── AI opponent (simple random legal move) ─── */
-// Piece values for evaluation
+// ── Strong Chess AI (depth 5 + quiescence + full evaluation) ────
 const PIECE_VAL: Record<string, number> = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
 
-// Piece-square tables (simplified, for black — flip for white)
-const PST_PAWN = [
-  0,0,0,0,0,0,0,0, 50,50,50,50,50,50,50,50, 10,10,20,30,30,20,10,10,
-  5,5,10,25,25,10,5,5, 0,0,0,20,20,0,0,0, 5,-5,-10,0,0,-10,-5,5,
-  5,10,10,-20,-20,10,10,5, 0,0,0,0,0,0,0,0
-];
-const PST_KNIGHT = [
-  -50,-40,-30,-30,-30,-30,-40,-50, -40,-20,0,0,0,0,-20,-40, -30,0,10,15,15,10,0,-30,
-  -30,5,15,20,20,15,5,-30, -30,0,15,20,20,15,0,-30, -30,5,10,15,15,10,5,-30,
-  -40,-20,0,5,5,0,-20,-40, -50,-40,-30,-30,-30,-30,-40,-50
-];
-const PST_KING_MID = [
-  -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30,
-  -30,-40,-40,-50,-50,-40,-40,-30, -20,-30,-30,-40,-40,-30,-30,-20, -10,-20,-20,-20,-20,-20,-20,-10,
-  20,20,0,0,0,0,20,20, 20,30,10,0,0,10,30,20
-];
+const PST: Record<string, number[]> = {
+  p: [0,0,0,0,0,0,0,0, 50,50,50,50,50,50,50,50, 10,10,20,30,30,20,10,10, 5,5,10,25,25,10,5,5, 0,0,0,20,20,0,0,0, 5,-5,-10,0,0,-10,-5,5, 5,10,10,-20,-20,10,10,5, 0,0,0,0,0,0,0,0],
+  n: [-50,-40,-30,-30,-30,-30,-40,-50, -40,-20,0,0,0,0,-20,-40, -30,0,10,15,15,10,0,-30, -30,5,15,20,20,15,5,-30, -30,0,15,20,20,15,0,-30, -30,5,10,15,15,10,5,-30, -40,-20,0,5,5,0,-20,-40, -50,-40,-30,-30,-30,-30,-40,-50],
+  b: [-20,-10,-10,-10,-10,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,10,10,10,10,0,-10, -10,5,5,10,10,5,5,-10, -10,0,10,10,10,10,0,-10, -10,10,10,10,10,10,10,-10, -10,5,0,0,0,0,5,-10, -20,-10,-10,-10,-10,-10,-10,-20],
+  r: [0,0,0,0,0,0,0,0, 5,10,10,10,10,10,10,5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, -5,0,0,0,0,0,0,-5, 0,0,0,5,5,0,0,0],
+  q: [-20,-10,-10,-5,-5,-10,-10,-20, -10,0,0,0,0,0,0,-10, -10,0,5,5,5,5,0,-10, -5,0,5,5,5,5,0,-5, 0,0,5,5,5,5,0,-5, -10,5,5,5,5,5,0,-10, -10,0,5,0,0,0,0,-10, -20,-10,-10,-5,-5,-10,-10,-20],
+  k: [-30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -20,-30,-30,-40,-40,-30,-30,-20, -10,-20,-20,-20,-20,-20,-20,-10, 20,20,0,0,0,0,20,20, 20,30,10,0,0,10,30,20],
+};
 
 const getPST = (piece: string, r: number, c: number): number => {
   const p = piece.toLowerCase();
   const isWhite = piece === piece.toUpperCase();
   const idx = isWhite ? (7 - r) * 8 + c : r * 8 + c;
-  if (p === "p") return PST_PAWN[idx] || 0;
-  if (p === "n") return PST_KNIGHT[idx] || 0;
-  if (p === "k") return PST_KING_MID[idx] || 0;
-  // Center bonus for bishops, rooks, queen
-  const centerDist = Math.abs(3.5 - r) + Math.abs(3.5 - c);
-  return Math.max(0, (7 - centerDist) * 5);
+  return PST[p]?.[idx] || 0;
 };
 
 const evaluateBoard = (state: GameState): number => {
   let score = 0;
+  let whiteBishops = 0, blackBishops = 0;
+  let whiteMobility = 0, blackMobility = 0;
+
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
       const p = state.board[r][c];
       if (!p) continue;
       const val = PIECE_VAL[p.toLowerCase()] || 0;
       const pst = getPST(p, r, c);
-      if (p === p.toUpperCase()) { score += val + pst; } // white
-      else { score -= val + pst; } // black
-    }
-  }
-  return score;
-};
+      const isWhite = p === p.toUpperCase();
 
-const minimax = (state: GameState, depth: number, alpha: number, beta: number, maximizing: boolean): number => {
-  if (depth === 0) return evaluateBoard(state);
+      if (isWhite) {
+        score += val + pst;
+        if (p === "B") whiteBishops++;
+        whiteMobility += getLegalMoves(state, [r, c]).length;
+      } else {
+        score -= val + pst;
+        if (p === "b") blackBishops++;
+        blackMobility += getLegalMoves(state, [r, c]).length;
+      }
 
-  const allMoves: { from: Pos; to: Pos }[] = [];
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const piece = state.board[r][c];
-      if (!piece) continue;
-      const isOwn = state.turn === "white" ? piece === piece.toUpperCase() : piece === piece.toLowerCase();
-      if (!isOwn) continue;
-      for (const to of getLegalMoves(state, [r, c])) {
-        allMoves.push({ from: [r, c], to });
+      // Pawn structure
+      if (p.toLowerCase() === "p") {
+        // Doubled pawns penalty
+        for (let rr = r + 1; rr < 8; rr++) {
+          const pp = state.board[rr][c];
+          if (pp && pp.toLowerCase() === "p" && (pp === pp.toUpperCase()) === isWhite) {
+            if (isWhite) score -= 15; else score += 15;
+          }
+        }
+        // Passed pawn bonus
+        const dir = isWhite ? -1 : 1;
+        let passed = true;
+        for (let rr = r + dir; rr >= 0 && rr < 8; rr += dir) {
+          for (let cc = Math.max(0, c - 1); cc <= Math.min(7, c + 1); cc++) {
+            const pp = state.board[rr][cc];
+            if (pp && pp.toLowerCase() === "p" && (pp === pp.toUpperCase()) !== isWhite) {
+              passed = false; break;
+            }
+          }
+          if (!passed) break;
+        }
+        if (passed) {
+          const advancement = isWhite ? (7 - r) : r;
+          const bonus = advancement * advancement * 3;
+          if (isWhite) score += bonus; else score -= bonus;
+        }
+      }
+
+      // Rook on open file
+      if (p.toLowerCase() === "r") {
+        let openFile = true;
+        for (let rr = 0; rr < 8; rr++) {
+          if (state.board[rr][c]?.toLowerCase() === "p") { openFile = false; break; }
+        }
+        if (openFile) { if (isWhite) score += 20; else score -= 20; }
       }
     }
   }
-  if (allMoves.length === 0) {
-    if (isInCheck(state, state.turn)) return maximizing ? -99999 : 99999; // checkmate
-    return 0; // stalemate
+
+  // Bishop pair bonus
+  if (whiteBishops >= 2) score += 30;
+  if (blackBishops >= 2) score -= 30;
+
+  // Mobility bonus (0.5 per legal move)
+  score += (whiteMobility - blackMobility) * 0.5;
+
+  // Check bonus
+  if (isInCheck(state, "black")) score += 20;
+  if (isInCheck(state, "white")) score -= 20;
+
+  return score;
+};
+
+const getAllMoves = (state: GameState): { from: Pos; to: Pos }[] => {
+  const moves: { from: Pos; to: Pos }[] = [];
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = state.board[r][c];
+      if (!p) continue;
+      const isOwn = state.turn === "white" ? p === p.toUpperCase() : p === p.toLowerCase();
+      if (!isOwn) continue;
+      for (const to of getLegalMoves(state, [r, c])) moves.push({ from: [r, c], to });
+    }
+  }
+  return moves;
+};
+
+// Move ordering for better pruning
+const orderMoves = (moves: { from: Pos; to: Pos }[], state: GameState): { from: Pos; to: Pos }[] => {
+  return moves.sort((a, b) => {
+    let sa = 0, sb = 0;
+    const capA = state.board[a.to[0]][a.to[1]];
+    const capB = state.board[b.to[0]][b.to[1]];
+    // MVV-LVA: most valuable victim, least valuable attacker
+    if (capA) sa += (PIECE_VAL[capA.toLowerCase()] || 0) * 10 - (PIECE_VAL[state.board[a.from[0]][a.from[1]]?.toLowerCase()] || 0);
+    if (capB) sb += (PIECE_VAL[capB.toLowerCase()] || 0) * 10 - (PIECE_VAL[state.board[b.from[0]][b.from[1]]?.toLowerCase()] || 0);
+    // Center moves
+    sa += (7 - Math.abs(3.5 - a.to[0]) - Math.abs(3.5 - a.to[1])) * 2;
+    sb += (7 - Math.abs(3.5 - b.to[0]) - Math.abs(3.5 - b.to[1])) * 2;
+    return sb - sa;
+  });
+};
+
+// Quiescence search — only evaluate captures at leaf nodes
+const quiesce = (state: GameState, alpha: number, beta: number, maximizing: boolean, depth: number): number => {
+  const standPat = evaluateBoard(state);
+  if (depth <= 0) return standPat;
+
+  if (maximizing) {
+    if (standPat >= beta) return beta;
+    if (standPat > alpha) alpha = standPat;
+  } else {
+    if (standPat <= alpha) return alpha;
+    if (standPat < beta) beta = standPat;
   }
 
-  // Sort: captures first for better alpha-beta pruning
-  allMoves.sort((a, b) => {
-    const capA = state.board[a.to[0]][a.to[1]] ? 1 : 0;
-    const capB = state.board[b.to[0]][b.to[1]] ? 1 : 0;
-    return capB - capA;
-  });
+  const moves = getAllMoves(state).filter(m => state.board[m.to[0]][m.to[1]] !== "");
+  for (const move of orderMoves(moves, state)) {
+    const newState = makeMove(state, move.from, move.to);
+    const score = quiesce(newState, alpha, beta, !maximizing, depth - 1);
+    if (maximizing) {
+      if (score >= beta) return beta;
+      if (score > alpha) alpha = score;
+    } else {
+      if (score <= alpha) return alpha;
+      if (score < beta) beta = score;
+    }
+  }
+  return maximizing ? alpha : beta;
+};
+
+const minimax = (state: GameState, depth: number, alpha: number, beta: number, maximizing: boolean): number => {
+  if (depth === 0) return quiesce(state, alpha, beta, maximizing, 4);
+
+  const moves = orderMoves(getAllMoves(state), state);
+  if (moves.length === 0) {
+    if (isInCheck(state, state.turn)) return maximizing ? -99999 + (5 - depth) : 99999 - (5 - depth);
+    return 0;
+  }
 
   if (maximizing) {
     let maxEval = -Infinity;
-    for (const move of allMoves) {
-      const newState = makeMove(state, move.from, move.to);
-      const ev = minimax(newState, depth - 1, alpha, beta, false);
+    for (const move of moves) {
+      const ev = minimax(makeMove(state, move.from, move.to), depth - 1, alpha, beta, false);
       maxEval = Math.max(maxEval, ev);
       alpha = Math.max(alpha, ev);
       if (beta <= alpha) break;
@@ -321,9 +408,8 @@ const minimax = (state: GameState, depth: number, alpha: number, beta: number, m
     return maxEval;
   } else {
     let minEval = Infinity;
-    for (const move of allMoves) {
-      const newState = makeMove(state, move.from, move.to);
-      const ev = minimax(newState, depth - 1, alpha, beta, true);
+    for (const move of moves) {
+      const ev = minimax(makeMove(state, move.from, move.to), depth - 1, alpha, beta, true);
       minEval = Math.min(minEval, ev);
       beta = Math.min(beta, ev);
       if (beta <= alpha) break;
@@ -333,26 +419,14 @@ const minimax = (state: GameState, depth: number, alpha: number, beta: number, m
 };
 
 const getComputerMove = (state: GameState): { from: Pos; to: Pos } | null => {
-  const allMoves: { from: Pos; to: Pos }[] = [];
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const piece = state.board[r][c];
-      if (!piece) continue;
-      const isOwn = state.turn === "white" ? piece === piece.toUpperCase() : piece === piece.toLowerCase();
-      if (!isOwn) continue;
-      for (const to of getLegalMoves(state, [r, c])) {
-        allMoves.push({ from: [r, c], to });
-      }
-    }
-  }
-  if (allMoves.length === 0) return null;
+  const moves = orderMoves(getAllMoves(state), state);
+  if (moves.length === 0) return null;
 
-  // Minimax depth 3 with alpha-beta pruning
-  let bestMove = allMoves[0];
-  let bestScore = Infinity; // computer is black (minimizing)
-  for (const move of allMoves) {
-    const newState = makeMove(state, move.from, move.to);
-    const score = minimax(newState, 2, -Infinity, Infinity, true);
+  // Depth 4 + quiescence (effectively depth 6-8 on captures)
+  let bestMove = moves[0];
+  let bestScore = Infinity;
+  for (const move of moves) {
+    const score = minimax(makeMove(state, move.from, move.to), 3, -Infinity, Infinity, true);
     if (score < bestScore) {
       bestScore = score;
       bestMove = move;
