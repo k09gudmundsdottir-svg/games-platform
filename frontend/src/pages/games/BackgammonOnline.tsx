@@ -181,6 +181,7 @@ const BackgammonOnline = () => {
     const code = genRoomCode();
     setRoomCode(code);
     setMyRole("gold");
+    window.location.hash = `${code}-gold-${encodeURIComponent(playerName)}`;
     setupChannel(code, "gold");
   };
 
@@ -190,8 +191,28 @@ const BackgammonOnline = () => {
     if (code.length !== 6) return;
     setRoomCode(code);
     setMyRole("silver");
+    window.location.hash = `${code}-silver-${encodeURIComponent(playerName)}`;
     setupChannel(code, "silver");
   };
+
+  // Auto-rejoin on refresh if hash contains room info
+  useEffect(() => {
+    const hash = window.location.hash.replace("#", "");
+    if (!hash) return;
+    const parts = hash.split("-");
+    if (parts.length >= 3) {
+      const code = parts[0];
+      const role = parts[1] as PlayerRole;
+      const name = decodeURIComponent(parts.slice(2).join("-"));
+      if (code.length === 6 && (role === "gold" || role === "silver")) {
+        setPlayerName(name);
+        setRoomCode(code);
+        setMyRole(role);
+        unlockAudio();
+        setTimeout(() => setupChannel(code, role), 100);
+      }
+    }
+  }, []);
 
   const copyCode = () => {
     navigator.clipboard.writeText(roomCode);
