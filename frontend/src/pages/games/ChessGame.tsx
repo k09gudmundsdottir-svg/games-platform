@@ -2,25 +2,23 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import GameLayout from "@/components/GameLayout";
 import { playPiecePlace, playPieceSelect, playPieceDeselect } from "@/lib/sounds";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  createInitialState, getLegalMoves, makeMove, isInCheck, isCheckmate, isStalemate,
-  type GameState, type Pos,
-} from "@/lib/chessEngine";
+import { Chess } from "chess.js";
+import type { Square, Move } from "chess.js";
 
 /* ─── Piece SVG URLs (Cburnett set from Wikimedia Commons) ─── */
 const PIECE_IMAGES: Record<string, string> = {
-  K: "https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg",
-  Q: "https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg",
-  R: "https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg",
-  B: "https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg",
-  N: "https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg",
-  P: "https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg",
-  k: "https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg",
-  q: "https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg",
-  r: "https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg",
-  b: "https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg",
-  n: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg",
-  p: "https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg",
+  wK: "https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg",
+  wQ: "https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg",
+  wR: "https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg",
+  wB: "https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg",
+  wN: "https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg",
+  wP: "https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg",
+  bK: "https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg",
+  bQ: "https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg",
+  bR: "https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg",
+  bB: "https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg",
+  bN: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg",
+  bP: "https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg",
 };
 
 /* ─── Chess.com board colors ─── */
@@ -53,7 +51,12 @@ const formatTime = (seconds: number) => {
 
 /* ─── Captured pieces ordering ─── */
 const PIECE_ORDER: Record<string, number> = { q: 0, r: 1, b: 2, n: 3, p: 4 };
-const PIECE_VALUES: Record<string, number> = { q: 9, r: 5, b: 3, n: 3, p: 1 };
+const PIECE_VALUES_SIMPLE: Record<string, number> = { q: 9, r: 5, b: 3, n: 3, p: 1 };
+
+/* ─── Helpers ─── */
+const sqToRC = (sq: Square): [number, number] => [8 - parseInt(sq[1]), sq.charCodeAt(0) - 97];
+const rcToSq = (r: number, c: number): Square => `${String.fromCharCode(97 + c)}${8 - r}` as Square;
+const pieceImgKey = (color: "w" | "b", type: string) => `${color}${type.toUpperCase()}`;
 
 /* ─── Sub-components ─── */
 
@@ -61,37 +64,31 @@ const ChessClock = ({ seconds, isActive, isLow }: { seconds: number; isActive: b
   <div
     className="px-3 py-1 rounded font-mono text-base font-bold tracking-wider transition-colors"
     style={{
-      backgroundColor: isActive
-        ? isLow ? "#b33430" : "#4a7a2e"
-        : "#3a3a3a",
-      color: isActive
-        ? "#ffffff"
-        : "#aaaaaa",
+      backgroundColor: isActive ? (isLow ? "#b33430" : "#4a7a2e") : "#3a3a3a",
+      color: isActive ? "#ffffff" : "#aaaaaa",
     }}
   >
     {formatTime(seconds)}
   </div>
 );
 
-const CapturedPieces = ({
-  pieces,
-  advantage,
-}: {
-  pieces: string[];
-  advantage: number;
-}) => {
-  const sorted = [...pieces].sort((a, b) => (PIECE_ORDER[a.toLowerCase()] ?? 9) - (PIECE_ORDER[b.toLowerCase()] ?? 9));
+const CapturedPieces = ({ pieces, advantage }: { pieces: string[]; advantage: number }) => {
+  const sorted = [...pieces].sort((a, b) => (PIECE_ORDER[a] ?? 9) - (PIECE_ORDER[b] ?? 9));
   return (
     <div className="flex items-center gap-0 h-5 min-h-[20px]">
-      {sorted.map((p, i) => (
-        <img
-          key={`${p}-${i}`}
-          src={PIECE_IMAGES[p]}
-          alt={p}
-          className="h-4 w-4 -mr-0.5"
-          style={{ filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.3))" }}
-        />
-      ))}
+      {sorted.map((p, i) => {
+        const color = p === p.toUpperCase() ? "w" : "b";
+        const imgKey = `${color}${p.toUpperCase()}`;
+        return (
+          <img
+            key={`${p}-${i}`}
+            src={PIECE_IMAGES[imgKey]}
+            alt={p}
+            className="h-4 w-4 -mr-0.5"
+            style={{ filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.3))" }}
+          />
+        );
+      })}
       {advantage > 0 && (
         <span className="text-xs font-semibold text-muted-foreground ml-1">+{advantage}</span>
       )}
@@ -116,7 +113,7 @@ const PlayerBar = ({
         }}
       >
         <img
-          src={isWhite ? PIECE_IMAGES.K : PIECE_IMAGES.k}
+          src={isWhite ? PIECE_IMAGES.wK : PIECE_IMAGES.bK}
           alt={isWhite ? "White" : "Black"}
           className="w-6 h-6"
         />
@@ -165,8 +162,9 @@ const TimeControlPicker = ({ onSelect }: { onSelect: (time: number, increment: n
   </motion.div>
 );
 
-const PromotionDialog = ({ color, onSelect }: { color: "white" | "black"; onSelect: (piece: string) => void }) => {
-  const pieces = color === "white" ? ["Q", "R", "B", "N"] : ["q", "r", "b", "n"];
+const PromotionDialog = ({ color, onSelect }: { color: "w" | "b"; onSelect: (piece: string) => void }) => {
+  const pieces = color === "w" ? ["q", "r", "b", "n"] : ["q", "r", "b", "n"];
+  const imgColor = color;
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -185,7 +183,7 @@ const PromotionDialog = ({ color, onSelect }: { color: "white" | "black"; onSele
               className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg flex items-center justify-center touch-manipulation"
               style={{ backgroundColor: "#4a4744", border: "1px solid #5a5754" }}
             >
-              <img src={PIECE_IMAGES[p]} alt={p} className="w-10 h-10 sm:w-12 sm:h-12" />
+              <img src={PIECE_IMAGES[`${imgColor}${p.toUpperCase()}`]} alt={p} className="w-10 h-10 sm:w-12 sm:h-12" />
             </motion.button>
           ))}
         </div>
@@ -234,8 +232,7 @@ const MoveHistorySidebar = ({ moves }: { moves: { num: number; white: string; bl
   </div>
 );
 
-/* ─── AI opponent (simple random legal move) ─── */
-// ── Strong Chess AI (depth 5 + quiescence + full evaluation) ────
+/* ─── AI Engine (minimax with chess.js) ─── */
 const PIECE_VAL: Record<string, number> = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
 
 const PST: Record<string, number[]> = {
@@ -247,71 +244,28 @@ const PST: Record<string, number[]> = {
   k: [-30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -30,-40,-40,-50,-50,-40,-40,-30, -20,-30,-30,-40,-40,-30,-30,-20, -10,-20,-20,-20,-20,-20,-20,-10, 20,20,0,0,0,0,20,20, 20,30,10,0,0,10,30,20],
 };
 
-const getPST = (piece: string, r: number, c: number): number => {
-  const p = piece.toLowerCase();
-  const isWhite = piece === piece.toUpperCase();
-  const idx = isWhite ? (7 - r) * 8 + c : r * 8 + c;
-  return PST[p]?.[idx] || 0;
+const getPstValue = (type: string, color: "w" | "b", r: number, c: number): number => {
+  const idx = color === "w" ? (7 - r) * 8 + c : r * 8 + c;
+  return PST[type]?.[idx] || 0;
 };
 
-const evaluateBoard = (state: GameState): number => {
+const evaluatePosition = (chess: Chess): number => {
   let score = 0;
   let whiteBishops = 0, blackBishops = 0;
-  let whiteMobility = 0, blackMobility = 0;
 
+  const board = chess.board();
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
-      const p = state.board[r][c];
-      if (!p) continue;
-      const val = PIECE_VAL[p.toLowerCase()] || 0;
-      const pst = getPST(p, r, c);
-      const isWhite = p === p.toUpperCase();
-
-      if (isWhite) {
+      const cell = board[r][c];
+      if (!cell) continue;
+      const val = PIECE_VAL[cell.type] || 0;
+      const pst = getPstValue(cell.type, cell.color, r, c);
+      if (cell.color === "w") {
         score += val + pst;
-        if (p === "B") whiteBishops++;
-        whiteMobility += getLegalMoves(state, [r, c]).length;
+        if (cell.type === "b") whiteBishops++;
       } else {
         score -= val + pst;
-        if (p === "b") blackBishops++;
-        blackMobility += getLegalMoves(state, [r, c]).length;
-      }
-
-      // Pawn structure
-      if (p.toLowerCase() === "p") {
-        // Doubled pawns penalty
-        for (let rr = r + 1; rr < 8; rr++) {
-          const pp = state.board[rr][c];
-          if (pp && pp.toLowerCase() === "p" && (pp === pp.toUpperCase()) === isWhite) {
-            if (isWhite) score -= 15; else score += 15;
-          }
-        }
-        // Passed pawn bonus
-        const dir = isWhite ? -1 : 1;
-        let passed = true;
-        for (let rr = r + dir; rr >= 0 && rr < 8; rr += dir) {
-          for (let cc = Math.max(0, c - 1); cc <= Math.min(7, c + 1); cc++) {
-            const pp = state.board[rr][cc];
-            if (pp && pp.toLowerCase() === "p" && (pp === pp.toUpperCase()) !== isWhite) {
-              passed = false; break;
-            }
-          }
-          if (!passed) break;
-        }
-        if (passed) {
-          const advancement = isWhite ? (7 - r) : r;
-          const bonus = advancement * advancement * 3;
-          if (isWhite) score += bonus; else score -= bonus;
-        }
-      }
-
-      // Rook on open file
-      if (p.toLowerCase() === "r") {
-        let openFile = true;
-        for (let rr = 0; rr < 8; rr++) {
-          if (state.board[rr][c]?.toLowerCase() === "p") { openFile = false; break; }
-        }
-        if (openFile) { if (isWhite) score += 20; else score -= 20; }
+        if (cell.type === "b") blackBishops++;
       }
     }
   }
@@ -320,53 +274,44 @@ const evaluateBoard = (state: GameState): number => {
   if (whiteBishops >= 2) score += 30;
   if (blackBishops >= 2) score -= 30;
 
-  // Mobility bonus (0.5 per legal move)
-  score += (whiteMobility - blackMobility) * 0.5;
+  // Mobility bonus
+  const currentMoves = chess.moves().length;
+  const turnSign = chess.turn() === "w" ? 1 : -1;
+  score += turnSign * currentMoves * 0.5;
 
   // Check bonus
-  if (isInCheck(state, "black")) score += 20;
-  if (isInCheck(state, "white")) score -= 20;
+  if (chess.isCheck()) {
+    score += chess.turn() === "b" ? 20 : -20;
+  }
 
   return score;
 };
 
-const getAllMoves = (state: GameState): { from: Pos; to: Pos }[] => {
-  const moves: { from: Pos; to: Pos }[] = [];
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const p = state.board[r][c];
-      if (!p) continue;
-      const isOwn = state.turn === "white" ? p === p.toUpperCase() : p === p.toLowerCase();
-      if (!isOwn) continue;
-      for (const to of getLegalMoves(state, [r, c])) moves.push({ from: [r, c], to });
-    }
-  }
-  return moves;
-};
+let nodeCount = 0;
+const MAX_NODES = 50000;
 
-// Move ordering for better pruning
-const orderMoves = (moves: { from: Pos; to: Pos }[], state: GameState): { from: Pos; to: Pos }[] => {
+const orderMoves = (moves: Move[]): Move[] => {
   return moves.sort((a, b) => {
     let sa = 0, sb = 0;
-    const capA = state.board[a.to[0]][a.to[1]];
-    const capB = state.board[b.to[0]][b.to[1]];
-    // MVV-LVA: most valuable victim, least valuable attacker
-    if (capA) sa += (PIECE_VAL[capA.toLowerCase()] || 0) * 10 - (PIECE_VAL[state.board[a.from[0]][a.from[1]]?.toLowerCase()] || 0);
-    if (capB) sb += (PIECE_VAL[capB.toLowerCase()] || 0) * 10 - (PIECE_VAL[state.board[b.from[0]][b.from[1]]?.toLowerCase()] || 0);
-    // Center moves
-    sa += (7 - Math.abs(3.5 - a.to[0]) - Math.abs(3.5 - a.to[1])) * 2;
-    sb += (7 - Math.abs(3.5 - b.to[0]) - Math.abs(3.5 - b.to[1])) * 2;
+    // MVV-LVA
+    if (a.captured) sa += (PIECE_VAL[a.captured] || 0) * 10 - (PIECE_VAL[a.piece] || 0);
+    if (b.captured) sb += (PIECE_VAL[b.captured] || 0) * 10 - (PIECE_VAL[b.piece] || 0);
+    // Promotions
+    if (a.promotion) sa += PIECE_VAL[a.promotion] || 0;
+    if (b.promotion) sb += PIECE_VAL[b.promotion] || 0;
+    // Center preference
+    const [ar, ac] = sqToRC(a.to as Square);
+    const [br, bc] = sqToRC(b.to as Square);
+    sa += (7 - Math.abs(3.5 - ar) - Math.abs(3.5 - ac)) * 2;
+    sb += (7 - Math.abs(3.5 - br) - Math.abs(3.5 - bc)) * 2;
     return sb - sa;
   });
 };
 
-let nodeCount = 0;
-const MAX_NODES = 30000; // Fast but smart
-
-const quiesce = (state: GameState, alpha: number, beta: number, maximizing: boolean, depth: number): number => {
+const quiesce = (chess: Chess, alpha: number, beta: number, maximizing: boolean, depth: number): number => {
   nodeCount++;
-  if (nodeCount > MAX_NODES) return evaluateBoard(state);
-  const standPat = evaluateBoard(state);
+  if (nodeCount > MAX_NODES) return evaluatePosition(chess);
+  const standPat = evaluatePosition(chess);
   if (depth <= 0) return standPat;
 
   if (maximizing) {
@@ -377,10 +322,12 @@ const quiesce = (state: GameState, alpha: number, beta: number, maximizing: bool
     if (standPat < beta) beta = standPat;
   }
 
-  const moves = getAllMoves(state).filter(m => state.board[m.to[0]][m.to[1]] !== "");
-  for (const move of orderMoves(moves, state)) {
-    const newState = makeMove(state, move.from, move.to);
-    const score = quiesce(newState, alpha, beta, !maximizing, depth - 1);
+  // Only search captures
+  const captures = chess.moves({ verbose: true }).filter(m => m.captured);
+  for (const move of orderMoves(captures)) {
+    chess.move(move);
+    const score = quiesce(chess, alpha, beta, !maximizing, depth - 1);
+    chess.undo();
     if (maximizing) {
       if (score >= beta) return beta;
       if (score > alpha) alpha = score;
@@ -392,21 +339,22 @@ const quiesce = (state: GameState, alpha: number, beta: number, maximizing: bool
   return maximizing ? alpha : beta;
 };
 
-const minimax = (state: GameState, depth: number, alpha: number, beta: number, maximizing: boolean): number => {
+const minimax = (chess: Chess, depth: number, alpha: number, beta: number, maximizing: boolean): number => {
   nodeCount++;
-  if (nodeCount > MAX_NODES) return evaluateBoard(state);
-  if (depth === 0) return quiesce(state, alpha, beta, maximizing, 2);
+  if (nodeCount > MAX_NODES) return evaluatePosition(chess);
 
-  const moves = orderMoves(getAllMoves(state), state);
-  if (moves.length === 0) {
-    if (isInCheck(state, state.turn)) return maximizing ? -99999 + (5 - depth) : 99999 - (5 - depth);
-    return 0;
-  }
+  if (chess.isCheckmate()) return maximizing ? -99999 + (5 - depth) : 99999 - (5 - depth);
+  if (chess.isDraw() || chess.isStalemate()) return 0;
+  if (depth === 0) return quiesce(chess, alpha, beta, maximizing, 2);
+
+  const moves = orderMoves(chess.moves({ verbose: true }));
 
   if (maximizing) {
     let maxEval = -Infinity;
     for (const move of moves) {
-      const ev = minimax(makeMove(state, move.from, move.to), depth - 1, alpha, beta, false);
+      chess.move(move);
+      const ev = minimax(chess, depth - 1, alpha, beta, false);
+      chess.undo();
       maxEval = Math.max(maxEval, ev);
       alpha = Math.max(alpha, ev);
       if (beta <= alpha) break;
@@ -415,7 +363,9 @@ const minimax = (state: GameState, depth: number, alpha: number, beta: number, m
   } else {
     let minEval = Infinity;
     for (const move of moves) {
-      const ev = minimax(makeMove(state, move.from, move.to), depth - 1, alpha, beta, true);
+      chess.move(move);
+      const ev = minimax(chess, depth - 1, alpha, beta, true);
+      chess.undo();
       minEval = Math.min(minEval, ev);
       beta = Math.min(beta, ev);
       if (beta <= alpha) break;
@@ -424,15 +374,17 @@ const minimax = (state: GameState, depth: number, alpha: number, beta: number, m
   }
 };
 
-const getComputerMove = (state: GameState): { from: Pos; to: Pos } | null => {
-  const moves = orderMoves(getAllMoves(state), state);
+const getComputerMove = (chess: Chess): Move | null => {
+  const moves = orderMoves(chess.moves({ verbose: true }));
   if (moves.length === 0) return null;
 
   nodeCount = 0;
   let bestMove = moves[0];
-  let bestScore = Infinity;
+  let bestScore = Infinity; // Computer is black (minimizing)
   for (const move of moves) {
-    const score = minimax(makeMove(state, move.from, move.to), 3, -Infinity, Infinity, true);
+    chess.move(move);
+    const score = minimax(chess, 3, -Infinity, Infinity, true);
+    chess.undo();
     if (score < bestScore) {
       bestScore = score;
       bestMove = move;
@@ -441,47 +393,45 @@ const getComputerMove = (state: GameState): { from: Pos; to: Pos } | null => {
   return bestMove;
 };
 
-const getHintMove = (state: GameState): { from: Pos; to: Pos; reason: string } | null => {
-  const moves = orderMoves(getAllMoves(state), state);
+const getHintMove = (chess: Chess): { move: Move; reason: string } | null => {
+  const moves = orderMoves(chess.moves({ verbose: true }));
   if (moves.length === 0) return null;
 
+  nodeCount = 0;
   let bestMove = moves[0];
-  let bestScore = -Infinity;
+  let bestScore = -Infinity; // Hint is for white (maximizing)
   for (const move of moves) {
-    const score = minimax(makeMove(state, move.from, move.to), 3, -Infinity, Infinity, false);
+    chess.move(move);
+    const score = minimax(chess, 3, -Infinity, Infinity, false);
+    chess.undo();
     if (score > bestScore) {
       bestScore = score;
       bestMove = move;
     }
   }
 
-  // Generate reason
-  const target = state.board[bestMove.to[0]][bestMove.to[1]];
-  const piece = state.board[bestMove.from[0]][bestMove.from[1]];
-  const pieceName = (p: string) => ({ p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" }[p.toLowerCase()] || p);
-  const files = "abcdefgh";
-  const fromSq = `${files[bestMove.from[1]]}${8 - bestMove.from[0]}`;
-  const toSq = `${files[bestMove.to[1]]}${8 - bestMove.to[0]}`;
-
-  let reason = `Move ${pieceName(piece || "")} from ${fromSq} to ${toSq}`;
-  if (target) reason += ` — captures ${pieceName(target)}!`;
+  const pieceName = (p: string) => ({ p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" }[p] || p);
+  let reason = `Move ${pieceName(bestMove.piece)} from ${bestMove.from} to ${bestMove.to}`;
+  if (bestMove.captured) reason += ` — captures ${pieceName(bestMove.captured)}!`;
   else if (bestScore > 500) reason += " — strong positional advantage";
   else if (bestScore > 100) reason += " — improves your position";
   else reason += " — best available move";
 
-  // Check if the move gives check
-  const newState = makeMove(state, bestMove.from, bestMove.to);
-  if (isInCheck(newState, "black")) reason += " (gives check!)";
+  // Check if gives check
+  chess.move(bestMove);
+  if (chess.isCheck()) reason += " (gives check!)";
+  chess.undo();
 
-  return { ...bestMove, reason };
+  return { move: bestMove, reason };
 };
 
 /* ─── Main component ─── */
 const ChessGame = () => {
-  const [gameState, setGameState] = useState<GameState>(createInitialState());
-  const [selected, setSelected] = useState<Pos | null>(null);
-  const [legalMoves, setLegalMoves] = useState<Pos[]>([]);
-  const [lastMove, setLastMove] = useState<{ from: Pos; to: Pos } | null>(null);
+  const [chess] = useState(() => new Chess());
+  const [fen, setFen] = useState(chess.fen());
+  const [selected, setSelected] = useState<Square | null>(null);
+  const [legalMoves, setLegalMoves] = useState<Square[]>([]);
+  const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
   const [moveHistory, setMoveHistory] = useState<{ num: number; white: string; black?: string }[]>([]);
   const [whiteTime, setWhiteTime] = useState(10 * 60);
   const [blackTime, setBlackTime] = useState(10 * 60);
@@ -489,20 +439,21 @@ const ChessGame = () => {
   const [gameStarted, setGameStarted] = useState(false);
   const [timeSelected, setTimeSelected] = useState(false);
   const [gameOver, setGameOver] = useState<string | null>(null);
-  const [pendingPromotion, setPendingPromotion] = useState<{ from: Pos; to: Pos } | null>(null);
-  const [capturedByWhite, setCapturedByWhite] = useState<string[]>([]); // pieces white has captured (black pieces)
-  const [capturedByBlack, setCapturedByBlack] = useState<string[]>([]); // pieces black has captured (white pieces)
+  const [pendingPromotion, setPendingPromotion] = useState<{ from: Square; to: Square } | null>(null);
+  const [capturedByWhite, setCapturedByWhite] = useState<string[]>([]);
+  const [capturedByBlack, setCapturedByBlack] = useState<string[]>([]);
   const [helpMode, setHelpMode] = useState(false);
-  const [hint, setHint] = useState<{ from: Pos; to: Pos } | null>(null);
+  const [hint, setHint] = useState<{ from: Square; to: Square; reason: string } | null>(null);
   const [hintThinking, setHintThinking] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const whiteInCheck = isInCheck(gameState.board, "white");
-  const blackInCheck = isInCheck(gameState.board, "black");
+  const turn = chess.turn();
+  const whiteInCheck = turn === "w" && chess.isCheck();
+  const blackInCheck = turn === "b" && chess.isCheck();
 
   // Material advantage
-  const whiteMaterial = capturedByWhite.reduce((sum, p) => sum + (PIECE_VALUES[p.toLowerCase()] || 0), 0);
-  const blackMaterial = capturedByBlack.reduce((sum, p) => sum + (PIECE_VALUES[p.toLowerCase()] || 0), 0);
+  const whiteMaterial = capturedByWhite.reduce((sum, p) => sum + (PIECE_VALUES_SIMPLE[p] || 0), 0);
+  const blackMaterial = capturedByBlack.reduce((sum, p) => sum + (PIECE_VALUES_SIMPLE[p] || 0), 0);
   const whiteAdvantage = whiteMaterial - blackMaterial;
   const blackAdvantage = blackMaterial - whiteMaterial;
 
@@ -514,7 +465,8 @@ const ChessGame = () => {
   };
 
   const handleNewGame = () => {
-    setGameState(createInitialState());
+    chess.reset();
+    setFen(chess.fen());
     setSelected(null);
     setLegalMoves([]);
     setLastMove(null);
@@ -525,12 +477,13 @@ const ChessGame = () => {
     setPendingPromotion(null);
     setCapturedByWhite([]);
     setCapturedByBlack([]);
+    setHint(null);
   };
 
   useEffect(() => {
     if (!gameStarted || gameOver) return;
     intervalRef.current = setInterval(() => {
-      if (gameState.turn === "white") {
+      if (chess.turn() === "w") {
         setWhiteTime(t => {
           if (t <= 1) { setGameOver("Black wins on time!"); return 0; }
           return t - 1;
@@ -543,21 +496,27 @@ const ChessGame = () => {
       }
     }, 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [gameState.turn, gameStarted, gameOver]);
+  }, [fen, gameStarted, gameOver]);
 
-  // Check for checkmate/stalemate
+  // Check for checkmate/stalemate/draw
   useEffect(() => {
     if (gameOver) return;
-    if (isCheckmate(gameState)) {
-      setGameOver(gameState.turn === "white" ? "Black wins by checkmate!" : "White wins by checkmate!");
-    } else if (isStalemate(gameState)) {
+    if (chess.isCheckmate()) {
+      setGameOver(chess.turn() === "w" ? "Black wins by checkmate!" : "White wins by checkmate!");
+    } else if (chess.isStalemate()) {
       setGameOver("Draw by stalemate!");
+    } else if (chess.isDraw()) {
+      setGameOver("Draw!");
     }
-  }, [gameState, gameOver]);
+  }, [fen, gameOver]);
 
-  const executeMove = useCallback((from: Pos, to: Pos, promoteTo?: string) => {
-    const result = makeMove(gameState, from, to, promoteTo);
-    setGameState(result.newState);
+  const executeMove = useCallback((from: Square, to: Square, promotion?: string) => {
+    const turnBefore = chess.turn();
+    const moveNumBefore = chess.moveNumber();
+    const result = chess.move({ from, to, promotion });
+    if (!result) return null;
+
+    setFen(chess.fen());
     setLastMove({ from, to });
     setSelected(null);
     setHint(null);
@@ -565,21 +524,21 @@ const ChessGame = () => {
 
     // Track captured pieces
     if (result.captured) {
-      if (gameState.turn === "white") {
-        setCapturedByWhite(prev => [...prev, result.captured]);
+      if (turnBefore === "w") {
+        setCapturedByWhite(prev => [...prev, result.captured!]);
       } else {
-        setCapturedByBlack(prev => [...prev, result.captured]);
+        setCapturedByBlack(prev => [...prev, result.captured!]);
       }
     }
 
-    // Update move history
+    // Update move history using SAN notation
     setMoveHistory(prev => {
       const copy = [...prev];
-      if (gameState.turn === "white") {
-        copy.push({ num: gameState.fullmoveNumber, white: result.notation });
+      if (turnBefore === "w") {
+        copy.push({ num: moveNumBefore, white: result.san });
       } else {
         if (copy.length > 0) {
-          copy[copy.length - 1] = { ...copy[copy.length - 1], black: result.notation };
+          copy[copy.length - 1] = { ...copy[copy.length - 1], black: result.san };
         }
       }
       return copy;
@@ -587,7 +546,7 @@ const ChessGame = () => {
 
     // Increment
     if (increment > 0) {
-      if (gameState.turn === "white") setWhiteTime(t => t + increment);
+      if (turnBefore === "w") setWhiteTime(t => t + increment);
       else setBlackTime(t => t + increment);
     }
 
@@ -595,48 +554,41 @@ const ChessGame = () => {
     playPiecePlace();
     if (navigator.vibrate) navigator.vibrate(15);
 
-    return result.newState;
-  }, [gameState, gameStarted, increment]);
+    return result;
+  }, [chess, gameStarted, increment]);
 
   // Computer AI move (black)
   useEffect(() => {
-    if (gameState.turn !== "black" || gameOver || !timeSelected) return;
+    if (chess.turn() !== "b" || gameOver || !timeSelected) return;
     const timer = setTimeout(() => {
       try {
-        nodeCount = 0;
-        const move = getComputerMove(gameState);
+        const move = getComputerMove(chess);
         if (move) {
-          const piece = gameState.board[move.from[0]][move.from[1]];
-          const promoRow = 7;
-          if (piece === "p" && move.to[0] === promoRow) {
-            executeMove(move.from, move.to, "q");
-          } else {
-            executeMove(move.from, move.to);
-          }
-      }
+          executeMove(move.from as Square, move.to as Square, move.promotion);
+        }
       } catch (e) {
         console.error("AI error:", e);
-        // Fallback: pick any random legal move
-        const fallbackMoves = getAllMoves(gameState);
+        const fallbackMoves = chess.moves({ verbose: true });
         if (fallbackMoves.length > 0) {
           const fm = fallbackMoves[Math.floor(Math.random() * fallbackMoves.length)];
-          executeMove(fm.from, fm.to);
+          executeMove(fm.from as Square, fm.to as Square, fm.promotion);
         }
       }
-    }, 300);
+    }, 500);
     return () => clearTimeout(timer);
-  }, [gameState.turn, gameOver, timeSelected]);
+  }, [fen, gameOver, timeSelected]);
 
   const handleSquareClick = (r: number, c: number) => {
     if (gameOver || pendingPromotion) return;
-    if (gameState.turn === "black") return; // Player is white only
+    if (chess.turn() === "b") return;
 
-    const piece = gameState.board[r][c];
+    const sq = rcToSq(r, c);
+    const board = chess.board();
+    const cell = board[r][c];
 
     if (selected) {
-      const [sr, sc] = selected;
       // Deselect
-      if (sr === r && sc === c) {
+      if (selected === sq) {
         setSelected(null);
         setLegalMoves([]);
         playPieceDeselect();
@@ -645,33 +597,32 @@ const ChessGame = () => {
       }
 
       // Select another own piece
-      if (piece && piece === piece.toUpperCase()) {
-        const moves = getLegalMoves(gameState, [r, c]);
-        setSelected([r, c]);
-        setLegalMoves(moves);
+      if (cell && cell.color === "w") {
+        const moves = chess.moves({ square: sq, verbose: true });
+        setSelected(sq);
+        setLegalMoves(moves.map(m => m.to as Square));
         playPieceSelect();
         if (navigator.vibrate) navigator.vibrate(8);
         return;
       }
 
       // Check legal move
-      const isLegal = legalMoves.some(([mr, mc]) => mr === r && mc === c);
+      const isLegal = legalMoves.includes(sq);
       if (!isLegal) return;
 
       // Promotion check
-      const movingPiece = gameState.board[sr][sc];
-      if (movingPiece === "P" && r === 0) {
-        setPendingPromotion({ from: [sr, sc], to: [r, c] });
+      const selectedCell = board[sqToRC(selected)[0]][sqToRC(selected)[1]];
+      if (selectedCell && selectedCell.type === "p" && selectedCell.color === "w" && r === 0) {
+        setPendingPromotion({ from: selected, to: sq });
         return;
       }
 
-      executeMove([sr, sc], [r, c]);
-    } else if (piece) {
-      // Only select white pieces (player is white)
-      if (piece !== piece.toUpperCase()) return;
-      const moves = getLegalMoves(gameState, [r, c]);
-      setSelected([r, c]);
-      setLegalMoves(moves);
+      executeMove(selected, sq);
+    } else if (cell) {
+      if (cell.color !== "w") return;
+      const moves = chess.moves({ square: sq, verbose: true });
+      setSelected(sq);
+      setLegalMoves(moves.map(m => m.to as Square));
       playPieceSelect();
       if (navigator.vibrate) navigator.vibrate(8);
     }
@@ -683,12 +634,14 @@ const ChessGame = () => {
     setPendingPromotion(null);
   };
 
-  const isSelectedSq = (r: number, c: number) => selected?.[0] === r && selected?.[1] === c;
-  const isLastMoveSq = (r: number, c: number) =>
-    (lastMove?.from[0] === r && lastMove?.from[1] === c) ||
-    (lastMove?.to[0] === r && lastMove?.to[1] === c);
-  const isLegalTarget = (r: number, c: number) =>
-    legalMoves.some(([mr, mc]) => mr === r && mc === c);
+  const board = chess.board();
+
+  const isSelectedSq = (r: number, c: number) => selected === rcToSq(r, c);
+  const isLastMoveSq = (r: number, c: number) => {
+    const sq = rcToSq(r, c);
+    return lastMove?.from === sq || lastMove?.to === sq;
+  };
+  const isLegalTarget = (r: number, c: number) => legalMoves.includes(rcToSq(r, c));
 
   const getSquareColor = (r: number, c: number) => {
     const isDark = (r + c) % 2 === 1;
@@ -698,19 +651,17 @@ const ChessGame = () => {
   };
 
   // King in check square
-  const whiteKingPos = (() => {
+  const findKing = (color: "w" | "b"): [number, number] | null => {
     for (let r = 0; r < 8; r++)
-      for (let c = 0; c < 8; c++)
-        if (gameState.board[r][c] === "K") return [r, c];
+      for (let c = 0; c < 8; c++) {
+        const cell = board[r][c];
+        if (cell && cell.type === "k" && cell.color === color) return [r, c];
+      }
     return null;
-  })();
+  };
 
-  const blackKingPos = (() => {
-    for (let r = 0; r < 8; r++)
-      for (let c = 0; c < 8; c++)
-        if (gameState.board[r][c] === "k") return [r, c];
-    return null;
-  })();
+  const whiteKingPos = findKing("w");
+  const blackKingPos = findKing("b");
 
   const isKingInCheckSq = (r: number, c: number) => {
     if (whiteInCheck && whiteKingPos && whiteKingPos[0] === r && whiteKingPos[1] === c) return true;
@@ -727,7 +678,7 @@ const ChessGame = () => {
           isWhite={false}
           isTop
           time={blackTime}
-          isActive={gameState.turn === "black"}
+          isActive={turn === "b"}
           inCheck={blackInCheck}
           capturedPieces={capturedByBlack}
           advantage={blackAdvantage > 0 ? blackAdvantage : 0}
@@ -740,18 +691,18 @@ const ChessGame = () => {
           }}
         >
           {!timeSelected && <TimeControlPicker onSelect={handleTimeSelect} />}
-          {pendingPromotion && <PromotionDialog color={gameState.turn} onSelect={handlePromotion} />}
+          {pendingPromotion && <PromotionDialog color={turn} onSelect={handlePromotion} />}
           {gameOver && <GameOverOverlay message={gameOver} onNewGame={handleNewGame} />}
 
           <div
             className={`grid grid-cols-8 w-full h-full ${!timeSelected ? "blur-sm" : ""}`}
             style={{ overflow: "hidden" }}
           >
-            {gameState.board.map((row, r) =>
-              row.map((piece, c) => {
+            {board.map((row, r) =>
+              row.map((cell, c) => {
                 const isDark = (r + c) % 2 === 1;
                 const legal = isLegalTarget(r, c);
-                const isCapture = legal && piece !== "";
+                const isCapture = legal && cell !== null;
                 const checkSq = isKingInCheckSq(r, c);
                 const sqColor = getSquareColor(r, c);
 
@@ -790,11 +741,11 @@ const ChessGame = () => {
 
                     {/* Chess piece */}
                     <AnimatePresence mode="popLayout">
-                      {piece && (
+                      {cell && (
                         <motion.img
-                          key={`${piece}-${r}-${c}`}
-                          src={PIECE_IMAGES[piece]}
-                          alt={piece}
+                          key={`${cell.color}${cell.type}-${r}-${c}`}
+                          src={PIECE_IMAGES[pieceImgKey(cell.color, cell.type)]}
+                          alt={`${cell.color}${cell.type}`}
                           initial={{ scale: 0.5, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           exit={{ scale: 0.5, opacity: 0 }}
@@ -811,7 +762,7 @@ const ChessGame = () => {
                     </AnimatePresence>
 
                     {/* Legal move: small grey dot (empty square) */}
-                    {legal && !piece && (
+                    {legal && !cell && (
                       <div
                         className="absolute rounded-full"
                         style={{
@@ -847,7 +798,7 @@ const ChessGame = () => {
           isWhite
           isTop={false}
           time={whiteTime}
-          isActive={gameState.turn === "white"}
+          isActive={turn === "w"}
           inCheck={whiteInCheck}
           capturedPieces={capturedByWhite}
           advantage={whiteAdvantage > 0 ? whiteAdvantage : 0}
@@ -856,7 +807,7 @@ const ChessGame = () => {
         {/* Hint display */}
         {hint && (
           <div className="mt-2 p-2 rounded-lg text-xs" style={{ backgroundColor: "#2d6ea3", color: "#fff" }}>
-            <div className="font-semibold mb-0.5">💡 Hint</div>
+            <div className="font-semibold mb-0.5">Hint</div>
             <div>{hint.reason}</div>
             <button onClick={() => setHint(null)} className="mt-1 text-[10px] opacity-70 hover:opacity-100">Dismiss</button>
           </div>
@@ -873,18 +824,21 @@ const ChessGame = () => {
               Resign
             </button>
           )}
-          {timeSelected && !gameOver && gameState.turn === "white" && (
+          {timeSelected && !gameOver && chess.turn() === "w" && (
             <button
               onClick={() => {
                 if (hintThinking) return;
                 setHintThinking(true);
                 setHint(null);
                 setTimeout(() => {
-                  const h = getHintMove(gameState);
+                  const h = getHintMove(chess);
                   if (h) {
-                    setHint(h);
-                    setSelected(h.from);
-                    setLegalMoves(getLegalMoves(gameState, h.from));
+                    const fromSq = h.move.from as Square;
+                    const toSq = h.move.to as Square;
+                    setHint({ from: fromSq, to: toSq, reason: h.reason });
+                    setSelected(fromSq);
+                    const moves = chess.moves({ square: fromSq, verbose: true });
+                    setLegalMoves(moves.map(m => m.to as Square));
                   }
                   setHintThinking(false);
                 }, 50);
@@ -892,7 +846,7 @@ const ChessGame = () => {
               className="px-3 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
               style={{ backgroundColor: "#2d6ea3", color: "#fff" }}
             >
-              {hintThinking ? "Thinking..." : "💡 Hint"}
+              {hintThinking ? "Thinking..." : "Hint"}
             </button>
           )}
           <button
@@ -900,7 +854,7 @@ const ChessGame = () => {
             className="px-3 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
             style={{ backgroundColor: helpMode ? "#e6912e" : "#555", color: "#fff" }}
           >
-            {helpMode ? "📖 Help ON" : "📖 Help"}
+            {helpMode ? "Help ON" : "Help"}
           </button>
           <button
             onClick={handleNewGame}
@@ -914,15 +868,15 @@ const ChessGame = () => {
         {/* Help mode info */}
         {helpMode && (
           <div className="mt-2 p-3 rounded-lg text-[11px] leading-relaxed" style={{ backgroundColor: "rgba(230,145,46,0.1)", border: "1px solid rgba(230,145,46,0.3)", color: "#e6912e" }}>
-            <div className="font-bold mb-1">📖 Help Mode Active</div>
+            <div className="font-bold mb-1">Help Mode Active</div>
             <div className="space-y-1 text-foreground/70">
-              <p>• Click any piece to see where it can move (green dots)</p>
-              <p>• Circles = empty squares you can move to</p>
-              <p>• Rings = opponent pieces you can capture</p>
-              <p>• Click "💡 Hint" to see the best move the AI recommends</p>
-              <p>• Yellow squares = the last move played</p>
-              <p>• Red glow = your king is in check — you MUST protect it</p>
-              <p>• The AI evaluates thousands of positions to find the best move</p>
+              <p>Click any piece to see where it can move (green dots)</p>
+              <p>Circles = empty squares you can move to</p>
+              <p>Rings = opponent pieces you can capture</p>
+              <p>Click "Hint" to see the best move the AI recommends</p>
+              <p>Yellow squares = the last move played</p>
+              <p>Red glow = your king is in check -- you MUST protect it</p>
+              <p>The AI evaluates thousands of positions to find the best move</p>
             </div>
           </div>
         )}
