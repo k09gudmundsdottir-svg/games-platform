@@ -6,31 +6,31 @@ import { GripVertical, Crown, Award, Medal } from "lucide-react";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/700.css";
 
+// Meme templates with correct Imgflip URLs
 const MEME_TEMPLATES = [
-  { id: "181913649", name: "Drake Hotline Bling" },
-  { id: "112126428", name: "Distracted Boyfriend" },
-  { id: "87743020", name: "Two Buttons" },
-  { id: "102156234", name: "Mocking SpongeBob" },
-  { id: "97984", name: "Disaster Girl" },
-  { id: "438680", name: "Batman Slapping Robin" },
-  { id: "93895088", name: "Expanding Brain" },
-  { id: "124822590", name: "Left Exit 12 Off Ramp" },
-  { id: "217743513", name: "UNO Draw 25" },
-  { id: "131087935", name: "Running Away Balloon" },
-  { id: "222403160", name: "Bernie Mittens" },
-  { id: "252600902", name: "Always Has Been" },
-  { id: "4087833", name: "Waiting Skeleton" },
-  { id: "61579", name: "One Does Not Simply" },
-  { id: "101470", name: "Ancient Aliens" },
-  { id: "89370399", name: "Roll Safe" },
-  { id: "119139145", name: "Blank Nut Button" },
-  { id: "61520", name: "Futurama Fry" },
-  { id: "27813981", name: "Hide the Pain Harold" },
-  { id: "188390779", name: "Panik Kalm Panik" },
+  { name: "Drake Hotline Bling", url: "https://i.imgflip.com/30b1gx.jpg" },
+  { name: "Distracted Boyfriend", url: "https://i.imgflip.com/1ur9b0.jpg" },
+  { name: "Two Buttons", url: "https://i.imgflip.com/1g8my4.jpg" },
+  { name: "UNO Draw 25", url: "https://i.imgflip.com/3lmzyx.jpg" },
+  { name: "Bernie Asking", url: "https://i.imgflip.com/3oevdk.jpg" },
+  { name: "Change My Mind", url: "https://i.imgflip.com/24y43o.jpg" },
+  { name: "Left Exit 12", url: "https://i.imgflip.com/22bdq6.jpg" },
+  { name: "Expanding Brain", url: "https://i.imgflip.com/1jwhww.jpg" },
+  { name: "Running Away Balloon", url: "https://i.imgflip.com/261o3j.jpg" },
+  { name: "Waiting Skeleton", url: "https://i.imgflip.com/2fm6x.jpg" },
+  { name: "One Does Not Simply", url: "https://i.imgflip.com/1bij.jpg" },
+  { name: "Batman Slapping Robin", url: "https://i.imgflip.com/9ehk.jpg" },
+  { name: "Ancient Aliens", url: "https://i.imgflip.com/26am.jpg" },
+  { name: "Futurama Fry", url: "https://i.imgflip.com/1bgw.jpg" },
+  { name: "Hide the Pain Harold", url: "https://i.imgflip.com/gk5el.jpg" },
+  { name: "Disaster Girl", url: "https://i.imgflip.com/23ls.jpg" },
+  { name: "Roll Safe", url: "https://i.imgflip.com/1h7in3.jpg" },
+  { name: "Panik Kalm Panik", url: "https://i.imgflip.com/3qqcim.png" },
+  { name: "Always Has Been", url: "https://i.imgflip.com/46e43q.png" },
+  { name: "Mocking SpongeBob", url: "https://i.imgflip.com/1otk96.jpg" },
 ];
 
 const getRandomMeme = () => MEME_TEMPLATES[Math.floor(Math.random() * MEME_TEMPLATES.length)];
-const memeUrl = (id: string) => `https://i.imgflip.com/${id}.jpg`;
 
 const captionCards = [
   "When you realize it's Monday tomorrow",
@@ -40,14 +40,6 @@ const captionCards = [
   "My face during meetings",
   "Expectations vs. Reality",
   "When WiFi disconnects for 2 seconds",
-  "POV: You forgot to save",
-  "When the code compiles on first try",
-  "Me pretending to understand the meeting",
-  "My browser tabs vs my RAM",
-  "When you hear your own voice on a recording",
-  "The group chat at 3 AM",
-  "When autocorrect ruins everything",
-  "My weekend plans vs reality",
 ];
 
 // Simulated submissions from other players
@@ -550,7 +542,7 @@ const MemeGame = () => {
               {phase === "picking" && (
                 <motion.div key="meme" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   <div className="relative rounded-xl border-2 border-border/30 overflow-hidden shadow-card-hover bg-secondary">
-                    <img src={memeUrl(currentMeme.id)} alt={currentMeme.name}
+                    <img src={currentMeme.url} alt={currentMeme.name}
                       className="w-full aspect-square object-contain bg-white" />
                     <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-background/70 backdrop-blur-sm border border-border/30">
                       <span className="text-[10px] font-display font-semibold text-foreground">{currentMeme.name}</span>
