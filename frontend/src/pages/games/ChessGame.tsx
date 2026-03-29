@@ -361,7 +361,7 @@ const orderMoves = (moves: { from: Pos; to: Pos }[], state: GameState): { from: 
 };
 
 let nodeCount = 0;
-const MAX_NODES = 15000; // Keep moves instant
+const MAX_NODES = 30000; // Fast but smart
 
 const quiesce = (state: GameState, alpha: number, beta: number, maximizing: boolean, depth: number): number => {
   nodeCount++;
@@ -395,7 +395,7 @@ const quiesce = (state: GameState, alpha: number, beta: number, maximizing: bool
 const minimax = (state: GameState, depth: number, alpha: number, beta: number, maximizing: boolean): number => {
   nodeCount++;
   if (nodeCount > MAX_NODES) return evaluateBoard(state);
-  if (depth === 0) return quiesce(state, alpha, beta, maximizing, 1);
+  if (depth === 0) return quiesce(state, alpha, beta, maximizing, 2);
 
   const moves = orderMoves(getAllMoves(state), state);
   if (moves.length === 0) {
@@ -432,7 +432,7 @@ const getComputerMove = (state: GameState): { from: Pos; to: Pos } | null => {
   let bestMove = moves[0];
   let bestScore = Infinity;
   for (const move of moves) {
-    const score = minimax(makeMove(state, move.from, move.to), 2, -Infinity, Infinity, true);
+    const score = minimax(makeMove(state, move.from, move.to), 3, -Infinity, Infinity, true);
     if (score < bestScore) {
       bestScore = score;
       bestMove = move;
