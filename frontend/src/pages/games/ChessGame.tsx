@@ -239,9 +239,12 @@ let stockfishResolve: ((move: string) => void) | null = null;
 
 const initStockfish = (): Worker => {
   if (stockfishWorker) return stockfishWorker;
-  stockfishWorker = new Worker("https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js");
+  // Web Workers require same-origin — use blob URL to load cross-origin script
+  const workerCode = `importScripts("https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js");`;
+  const blob = new Blob([workerCode], { type: "application/javascript" });
+  stockfishWorker = new Worker(URL.createObjectURL(blob));
   stockfishWorker.postMessage("uci");
-  stockfishWorker.postMessage("setoption name Skill Level value 15"); // 0-20, 15 = strong club player
+  stockfishWorker.postMessage("setoption name Skill Level value 18"); // 0-20, 18 = very strong
   stockfishWorker.postMessage("isready");
   stockfishWorker.onmessage = (e) => {
     const msg = e.data as string;
