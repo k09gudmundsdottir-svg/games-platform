@@ -4,8 +4,12 @@ let audioCtx: AudioContext | null = null;
 
 const getCtx = () => {
   if (!audioCtx) audioCtx = new AudioContext();
+  if (audioCtx.state === "suspended") audioCtx.resume();
   return audioCtx;
 };
+
+// Call this on any user click to unlock audio
+export const unlockAudio = () => { getCtx(); };
 
 /** Short percussive card flip — crisp "thwip" */
 export const playCardFlip = () => {

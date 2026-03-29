@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, RotateCcw, Copy, Check, Users } from "lucide-react";
 import GameLayout from "@/components/GameLayout";
-import { playDiceRoll, playPiecePlace } from "@/lib/sounds";
+import { playDiceRoll, playPiecePlace, unlockAudio } from "@/lib/sounds";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -165,6 +165,7 @@ const BackgammonOnline = () => {
   }, [playerName]);
 
   const createRoom = () => {
+    unlockAudio();
     const code = genRoomCode();
     setRoomCode(code);
     setMyRole("gold");
@@ -172,6 +173,7 @@ const BackgammonOnline = () => {
   };
 
   const joinRoom = () => {
+    unlockAudio();
     const code = joinCode.trim().toUpperCase();
     if (code.length !== 6) return;
     setRoomCode(code);
