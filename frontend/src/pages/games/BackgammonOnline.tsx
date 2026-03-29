@@ -16,10 +16,22 @@ const haptic = (style: "light" | "medium" | "heavy" = "light") => {
   if (navigator.vibrate) navigator.vibrate(style === "light" ? 10 : style === "medium" ? 25 : 50);
 };
 
+// Standard backgammon starting position
+// Gold (positive) moves from point 24 toward point 1 (index 23→0)
+// Silver (negative) moves from point 1 toward point 24 (index 0→23)
+// Point N = index N-1
 const INITIAL_BOARD: number[] = (() => {
   const b = new Array(24).fill(0);
-  b[0] = 2; b[11] = 5; b[16] = 3; b[18] = 5;
-  b[23] = -2; b[12] = -5; b[7] = -3; b[5] = -5;
+  // Gold: 2 on point 24, 5 on point 13, 3 on point 8, 5 on point 6
+  b[23] = 2;  // point 24
+  b[12] = 5;  // point 13
+  b[7] = 3;   // point 8
+  b[5] = 5;   // point 6
+  // Silver: 2 on point 1, 5 on point 12, 3 on point 17, 5 on point 19
+  b[0] = -2;   // point 1
+  b[11] = -5;  // point 12
+  b[16] = -3;  // point 17
+  b[18] = -5;  // point 19
   return b;
 })();
 
