@@ -16,6 +16,9 @@ import UnoGame from "./pages/games/UnoGame.tsx";
 import WarGame from "./pages/games/WarGame.tsx";
 import SnapGame from "./pages/games/SnapGame.tsx";
 import MemeGame from "./pages/games/MemeGame.tsx";
+import SolitaireGame from "./pages/games/SolitaireGame.tsx";
+import HeartsGame from "./pages/games/HeartsGame.tsx";
+import GinRummyGame from "./pages/games/GinRummyGame.tsx";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +41,9 @@ const App = () => (
             <Route path="/play/war" element={<WarGame />} />
             <Route path="/play/snap" element={<SnapGame />} />
             <Route path="/play/what-do-you-meme" element={<MemeGame />} />
+            <Route path="/play/solitaire" element={<SolitaireGame />} />
+            <Route path="/play/hearts" element={<HeartsGame />} />
+            <Route path="/play/gin-rummy" element={<GinRummyGame />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
