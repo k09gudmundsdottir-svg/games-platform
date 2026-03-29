@@ -260,44 +260,92 @@ const BackgammonGame = () => {
       let curBar = computerBar;
       let curOff = computerOff;
 
-      // Plan all moves first
-      const planned: { from: number; to: number; isOff?: boolean }[] = [];
-      for (const die of cMoves) {
-        if (curBar > 0) {
+      // Smart AI: evaluate all possible moves and pick the best
+      const getValidMovesForDie = (b: number[], bar: number, off: number, die: number): { from: number; to: number; isOff?: boolean }[] => {
+        const moves: { from: number; to: number; isOff?: boolean }[] = [];
+        if (bar > 0) {
           const target = 24 - die;
-          if (currentBoard[target] <= 1) {
-            if (currentBoard[target] === 1) { currentBoard[target] = 0; }
-            currentBoard[target]--;
-            curBar--;
-            planned.push({ from: -1, to: target });
-            continue;
-          }
-          continue;
+          if (target >= 0 && target < 24 && b[target] <= 1) moves.push({ from: -1, to: target });
+          return moves; // must re-enter first
         }
         let allHome = true;
-        for (let i = 6; i < 24; i++) { if (currentBoard[i] < 0) { allHome = false; break; } }
-        let moved = false;
+        for (let i = 6; i < 24; i++) { if (b[i] < 0) { allHome = false; break; } }
         for (let i = 23; i >= 0; i--) {
-          if (currentBoard[i] >= 0 || moved) continue;
+          if (b[i] >= 0) continue;
           const target = i - die;
-          if (target < 0) {
-            if (allHome && curBar === 0) {
-              if (target === -1 || (() => { for (let j = i + 1; j < 24; j++) { if (currentBoard[j] < 0) return false; } return true; })()) {
-                currentBoard[i]++; curOff++;
-                planned.push({ from: i, to: -1, isOff: true });
-                moved = true;
-              }
-            }
-            continue;
+          if (target >= 0 && target < 24 && b[target] <= 1) {
+            moves.push({ from: i, to: target });
           }
-          if (currentBoard[target] <= 1) {
-            if (currentBoard[target] === 1) { currentBoard[target] = 0; }
-            currentBoard[i]++; currentBoard[target]--;
-            planned.push({ from: i, to: target });
-            moved = true;
+          if (target < 0 && allHome && bar === 0) {
+            const isHighest = (() => { for (let j = i + 1; j < 24; j++) { if (b[j] < 0) return false; } return true; })();
+            if (target === -1 || isHighest) moves.push({ from: i, to: -1, isOff: true });
           }
         }
+        return moves;
+      };
+
+      const scorePosition = (b: number[], bar: number, off: number): number => {
+        let score = off * 50; // bearing off is great
+        score -= bar * 40; // being on bar is terrible
+        for (let i = 0; i < 24; i++) {
+          if (b[i] < 0) {
+            const count = Math.abs(b[i]);
+            if (count === 1) score -= 15; // exposed blot — bad
+            if (count >= 2) score += 8; // made point — good
+            if (count >= 2 && i < 6) score += 12; // home board point — very good
+            score += (23 - i) * 0.5; // closer to home is better
+          }
+        }
+        // Penalize opponent blots we can hit
+        for (let i = 0; i < 24; i++) {
+          if (b[i] === 1) score += 10; // opponent blot we might have hit
+        }
+        return score;
+      };
+
+      // Try all permutations of dice and pick best sequence
+      const perms = cMoves.length === 2 && cMoves[0] !== cMoves[1] ? [[0, 1], [1, 0]] : [cMoves.map((_, i) => i)];
+      let bestPlan: { from: number; to: number; isOff?: boolean }[] = [];
+      let bestScore = -Infinity;
+
+      for (const order of perms) {
+        const plan: { from: number; to: number; isOff?: boolean }[] = [];
+        let b = [...currentBoard], br = curBar, of = curOff;
+        for (const di of order) {
+          const moves = getValidMovesForDie(b, br, of, cMoves[di]);
+          if (moves.length === 0) continue;
+          // Score each move
+          let bestMove = moves[0], bestMoveScore = -Infinity;
+          for (const m of moves) {
+            const nb = [...b];
+            let nbar = br, noff = of;
+            if (m.from === -1) { nbar--; }
+            else { nb[m.from]++; }
+            if (m.isOff) { noff++; }
+            else {
+              if (nb[m.to] === 1) { nb[m.to] = 0; } // hit
+              nb[m.to]--;
+            }
+            const s = scorePosition(nb, nbar, noff);
+            if (s > bestMoveScore) { bestMoveScore = s; bestMove = m; }
+          }
+          plan.push(bestMove);
+          // Apply
+          if (bestMove.from === -1) { br--; }
+          else { b[bestMove.from]++; }
+          if (bestMove.isOff) { of++; }
+          else {
+            if (b[bestMove.to] === 1) { b[bestMove.to] = 0; }
+            b[bestMove.to]--;
+          }
+        }
+        const totalScore = scorePosition(b, br, of);
+        if (plan.length > bestPlan.length || (plan.length === bestPlan.length && totalScore > bestScore)) {
+          bestPlan = plan;
+          bestScore = totalScore;
+        }
       }
+      const planned = bestPlan;
 
       // Now replay the moves one by one with animation
       let replayBoard = [...board];
