@@ -272,17 +272,21 @@ const BackgammonGame = () => {
     setThinking(true);
 
     const runComputer = async () => {
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 800));
       playDiceRoll();
       const d1 = rollDie(), d2 = rollDie();
       const cd = d1 === d2 ? [d1, d1, d1, d1] : [d1, d2];
       setDice(cd); setUsedDice(cd.map(() => false));
       addLog(`Computer rolled ${d1} and ${d2}${d1 === d2 ? " -- doubles!" : ""}`);
+
+      // Pause to let player see the dice
+      await new Promise(r => setTimeout(r, 1200));
+
       const plan = computerPlan(boardRef.current, cd);
 
       if (plan.length === 0) {
         addLog("Computer has no valid moves.");
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(r => setTimeout(r, 800));
         setDice([]); setUsedDice([]); setTurn("player"); setThinking(false);
         addLog("Your turn -- roll the dice!");
         return;
@@ -292,7 +296,7 @@ const BackgammonGame = () => {
       const usedArr = cd.map(() => false);
       for (let idx = 0; idx < plan.length; idx++) {
         const [from, to, di] = plan[idx];
-        await new Promise(r => setTimeout(r, 150));
+        await new Promise(r => setTimeout(r, 700));
         cur = applyMove(cur, "computer", from, to);
         usedArr[di] = true;
         playPiecePlace();
@@ -306,7 +310,7 @@ const BackgammonGame = () => {
           return;
         }
       }
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 600));
       setDice([]); setUsedDice([]); setTurn("player"); setThinking(false);
       addLog("Your turn -- roll the dice!");
     };
