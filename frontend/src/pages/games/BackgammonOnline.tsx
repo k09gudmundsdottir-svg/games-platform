@@ -258,6 +258,12 @@ const BackgammonOnline = () => {
     setDice([d1, d2]);
     setMovesLeft(newMoves);
 
+    // Broadcast dice to opponent immediately so they can see the roll
+    broadcastState({
+      board, dice: [d1, d2], movesLeft: newMoves, goldBar, silverBar, goldOff, silverOff,
+      turn: myRole!, message: `${playerName} rolled ${d1} & ${d2}`,
+    });
+
     const canMove = (() => {
       if (myBar > 0) return getValidMoves(-1, newMoves, board, myBar).length > 0;
       for (let i = 0; i < 24; i++) {
