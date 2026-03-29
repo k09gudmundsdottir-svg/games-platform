@@ -784,16 +784,6 @@ const BackgammonGame = () => {
           <motion.button
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
-            onClick={() => setShowHelp(!showHelp)}
-            className="px-3 py-2 sm:px-5 sm:py-3 rounded-lg sm:rounded-xl font-display text-xs sm:text-sm border border-border/30 flex items-center gap-1.5 sm:gap-2 transition-colors"
-            style={{ background: showHelp ? "hsl(30, 80%, 40%)" : "hsl(240, 8%, 12%)", color: showHelp ? "#fff" : "hsl(240, 6%, 55%)" }}
-          >
-            📖 {showHelp ? "Help ON" : "Help"}
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
             onClick={resetGame}
             className="px-3 py-2 sm:px-5 sm:py-3 rounded-lg sm:rounded-xl font-display text-xs sm:text-sm text-muted-foreground border border-border/30 flex items-center gap-1.5 sm:gap-2 hover:text-foreground hover:border-border/50 transition-colors"
             style={{ background: "hsl(240, 8%, 12%)" }}
@@ -801,23 +791,6 @@ const BackgammonGame = () => {
             <RotateCcw className="w-3.5 h-3.5" /> New Game
           </motion.button>
         </div>
-
-        {showHelp && (
-          <div className="mt-3 p-3 rounded-lg text-[11px] leading-relaxed mx-auto max-w-lg" style={{ backgroundColor: "rgba(230,145,46,0.1)", border: "1px solid rgba(230,145,46,0.3)", color: "#e6912e" }}>
-            <div className="font-bold mb-1 font-display">📖 How to Play Backgammon</div>
-            <div className="space-y-1 text-foreground/70 font-body">
-              <p>• <strong>Goal:</strong> Move all your pieces to your home board (points 1-6) and bear them off</p>
-              <p>• <strong>Roll dice:</strong> Click "Roll Dice" to get two numbers</p>
-              <p>• <strong>Move:</strong> Click a highlighted piece, then click where to move it</p>
-              <p>• <strong>Rules:</strong> You can land on empty points or points with your own pieces</p>
-              <p>• <strong>Hitting:</strong> Land on a point with a single opponent piece to send it to the bar</p>
-              <p>• <strong>Bar:</strong> If you're on the bar, you must re-enter before moving other pieces</p>
-              <p>• <strong>Bearing off:</strong> When ALL your pieces are in your home board, you can remove them</p>
-              <p>• <strong>Doubles:</strong> Rolling doubles gives you 4 moves instead of 2</p>
-              <p>• <strong>Strategy:</strong> Make "points" (2+ pieces) to block your opponent. Avoid leaving single pieces exposed</p>
-            </div>
-          </div>
-        )}
 
         {/* Move history */}
         {moveHistory.length > 0 && (

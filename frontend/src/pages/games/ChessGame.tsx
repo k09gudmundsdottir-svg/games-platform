@@ -804,15 +804,6 @@ const ChessGame = () => {
           advantage={whiteAdvantage > 0 ? whiteAdvantage : 0}
         />
 
-        {/* Hint display */}
-        {hint && (
-          <div className="mt-2 p-2 rounded-lg text-xs" style={{ backgroundColor: "#2d6ea3", color: "#fff" }}>
-            <div className="font-semibold mb-0.5">Hint</div>
-            <div>{hint.reason}</div>
-            <button onClick={() => setHint(null)} className="mt-1 text-[10px] opacity-70 hover:opacity-100">Dismiss</button>
-          </div>
-        )}
-
         {/* Controls */}
         <div className="flex gap-2 mt-2 flex-wrap">
           {timeSelected && !gameOver && (
@@ -824,38 +815,6 @@ const ChessGame = () => {
               Resign
             </button>
           )}
-          {timeSelected && !gameOver && chess.turn() === "w" && (
-            <button
-              onClick={() => {
-                if (hintThinking) return;
-                setHintThinking(true);
-                setHint(null);
-                setTimeout(() => {
-                  const h = getHintMove(chess);
-                  if (h) {
-                    const fromSq = h.move.from as Square;
-                    const toSq = h.move.to as Square;
-                    setHint({ from: fromSq, to: toSq, reason: h.reason });
-                    setSelected(fromSq);
-                    const moves = chess.moves({ square: fromSq, verbose: true });
-                    setLegalMoves(moves.map(m => m.to as Square));
-                  }
-                  setHintThinking(false);
-                }, 50);
-              }}
-              className="px-3 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
-              style={{ backgroundColor: "#2d6ea3", color: "#fff" }}
-            >
-              {hintThinking ? "Thinking..." : "Hint"}
-            </button>
-          )}
-          <button
-            onClick={() => setHelpMode(!helpMode)}
-            className="px-3 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
-            style={{ backgroundColor: helpMode ? "#e6912e" : "#555", color: "#fff" }}
-          >
-            {helpMode ? "Help ON" : "Help"}
-          </button>
           <button
             onClick={handleNewGame}
             className="px-3 py-1.5 rounded text-xs font-semibold transition-colors touch-manipulation"
@@ -864,22 +823,6 @@ const ChessGame = () => {
             New Game
           </button>
         </div>
-
-        {/* Help mode info */}
-        {helpMode && (
-          <div className="mt-2 p-3 rounded-lg text-[11px] leading-relaxed" style={{ backgroundColor: "rgba(230,145,46,0.1)", border: "1px solid rgba(230,145,46,0.3)", color: "#e6912e" }}>
-            <div className="font-bold mb-1">Help Mode Active</div>
-            <div className="space-y-1 text-foreground/70">
-              <p>Click any piece to see where it can move (green dots)</p>
-              <p>Circles = empty squares you can move to</p>
-              <p>Rings = opponent pieces you can capture</p>
-              <p>Click "Hint" to see the best move the AI recommends</p>
-              <p>Yellow squares = the last move played</p>
-              <p>Red glow = your king is in check -- you MUST protect it</p>
-              <p>The AI evaluates thousands of positions to find the best move</p>
-            </div>
-          </div>
-        )}
       </div>
     </GameLayout>
   );
