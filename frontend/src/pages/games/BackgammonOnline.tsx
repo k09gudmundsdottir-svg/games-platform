@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, RotateCcw, Users } from "lucide-react";
+import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, RotateCcw, Users, Link2 } from "lucide-react";
 import GameLayout from "@/components/GameLayout";
 import { playDiceRoll, playPiecePlace, unlockAudio } from "@/lib/sounds";
 import { createClient } from "@supabase/supabase-js";
@@ -60,6 +60,8 @@ const BackgammonOnline = () => {
   const [opponentId, setOpponentId] = useState<string | null>(null);
   const resultRecordedRef = useRef(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const roomDbIdRef = useRef<string | null>(null);
+  const [reconnected, setReconnected] = useState(false);
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([]);
@@ -104,6 +106,18 @@ const BackgammonOnline = () => {
   const gameIdRef = useRef<string | null>(new URLSearchParams(window.location.search).get("game"));
   const phaseRef = useRef<Phase>("lobby");
 
+  // Persist game state to Supabase game_state table for reconnection
+  const persistState = useCallback((state: any) => {
+    const dbId = roomDbIdRef.current;
+    if (!dbId) return;
+    supabase.from("game_state").upsert({
+      room_id: dbId,
+      board_state: state,
+      current_turn: state.turn,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "room_id" }).then(() => {});
+  }, []);
+
   const broadcastState = useCallback((updates: {
     board: number[]; dice: number[]; movesLeft: number[];
     goldBar: number; silverBar: number; goldOff: number; silverOff: number;
@@ -121,7 +135,9 @@ const BackgammonOnline = () => {
         ...(updates.winner ? { status: "completed", ended_at: new Date().toISOString() } : {}),
       }).eq("id", gameIdRef.current).then(() => {});
     }
-  }, []);
+    // Also persist to game_state table (fire-and-forget)
+    persistState(updates);
+  }, [persistState]);
 
   const setupChannel = useCallback((code: string, role: PlayerRole) => {
     const channel = supabase.channel(`backgammon-${code}`, {
@@ -206,6 +222,8 @@ const BackgammonOnline = () => {
   useEffect(() => { phaseRef.current = phase; }, [phase]);
 
   const [matchmaking, setMatchmaking] = useState(false);
+  const [pendingRoomCode, setPendingRoomCode] = useState("");
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   // Sync name from auth
   useEffect(() => {
@@ -293,14 +311,34 @@ const BackgammonOnline = () => {
         setupChannel(code, role);
         setMatchmaking(false);
         mmChannel.unsubscribe();
+
+        // Create or find game_rooms entry for state persistence
+        if (isFirst) {
+          supabase.from("game_rooms").insert({
+            game_type: "backgammon",
+            room_code: code,
+            status: "playing",
+            host_player_id: user?.id || playerName,
+            player_ids: [user?.id || playerName],
+          }).select("id").single().then(({ data }) => {
+            if (data?.id) roomDbIdRef.current = data.id;
+          });
+        } else {
+          supabase.from("game_rooms").select("id").eq("room_code", code).single().then(({ data }) => {
+            if (data?.id) roomDbIdRef.current = data.id;
+          });
+        }
       }
     });
+
+    const myRoomCode = genRoomCode();
+    setPendingRoomCode(myRoomCode);
 
     mmChannel.subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
         await mmChannel.track({
           name: playerName,
-          room_code: genRoomCode(),
+          room_code: myRoomCode,
           joined_at: Date.now(),
         });
       }
@@ -331,6 +369,30 @@ const BackgammonOnline = () => {
         setMyRole(role);
         unlockAudio();
         setTimeout(() => setupChannel(code, role), 100);
+
+        // Restore saved game state from DB on reconnect
+        supabase.from("game_rooms").select("id").eq("room_code", code).single().then(({ data: room }) => {
+          if (!room?.id) return;
+          roomDbIdRef.current = room.id;
+          supabase.from("game_state").select("board_state").eq("room_id", room.id).single().then(({ data: saved }) => {
+            const s = saved?.board_state;
+            if (s && s.turn && s.board && Array.isArray(s.board)) {
+              setPhase("playing");
+              setBoard(s.board);
+              setDice(s.dice || []);
+              setMovesLeft(s.movesLeft || []);
+              setGoldBar(s.goldBar || 0);
+              setSilverBar(s.silverBar || 0);
+              setGoldOff(s.goldOff || 0);
+              setSilverOff(s.silverOff || 0);
+              setIsMyTurn(s.turn === role);
+              setMessage(s.turn === role ? "Your turn -- roll the dice" : "Opponent's turn...");
+              if (s.winner) { setWinner(s.winner); setPhase("gameover"); }
+              setReconnected(true);
+              setTimeout(() => setReconnected(false), 3000);
+            }
+          });
+        });
       }
     }
     return () => cancelMatchmaking();
@@ -853,6 +915,20 @@ const BackgammonOnline = () => {
                   <p className="text-xs text-muted-foreground font-body">
                     Waiting for another player to join. Video chat will start automatically.
                   </p>
+                  {pendingRoomCode && (
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        const url = `https://games.azurenexus.com/play/backgammon-online?game=${pendingRoomCode}`;
+                        navigator.clipboard.writeText(url).then(() => {
+                          setInviteCopied(true);
+                          setTimeout(() => setInviteCopied(false), 2000);
+                        });
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-2 rounded-xl font-display font-medium text-sm border border-primary/30 text-primary hover:bg-primary/10 transition-colors">
+                      <Link2 className="w-4 h-4" />
+                      {inviteCopied ? "Copied!" : "Copy Invite Link"}
+                    </motion.button>
+                  )}
                   <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                     onClick={cancelMatchmaking}
                     className="px-6 py-2 rounded-xl font-display font-medium text-sm border border-border/30 text-muted-foreground hover:text-foreground transition-colors">
@@ -899,6 +975,19 @@ const BackgammonOnline = () => {
   return (
     <GameLayout title="Backgammon Online" >
       <div className="flex flex-col items-center h-full p-0 sm:p-2 md:p-3 gap-0 sm:gap-2 pt-4 sm:pt-2">
+        {/* Reconnection banner */}
+        <AnimatePresence>
+          {reconnected && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="w-full max-w-[900px] mb-1 px-4 py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-center text-xs font-display font-semibold text-green-400"
+            >
+              Reconnected! Game state restored.
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Scoreboard — compact on mobile */}
         <div className="w-full max-w-[100vw] sm:max-w-[900px] flex items-center justify-between px-1 py-0 sm:py-1">
           <div className="flex items-center gap-2 sm:gap-3">

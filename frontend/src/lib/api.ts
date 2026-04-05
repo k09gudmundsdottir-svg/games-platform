@@ -265,4 +265,7 @@ export const legendsApi = {
 
   playerStats: (playerId: string) =>
     request<any>(`/leaderboard/player/${playerId}`),
+
+  matchHistory: (playerId: string) =>
+    request<any>(`/leaderboard/history/${playerId}`),
 };

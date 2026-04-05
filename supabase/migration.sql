@@ -77,6 +77,12 @@ CREATE POLICY anon_read_moves ON game_moves FOR SELECT TO anon USING (true);
 CREATE POLICY anon_read_meme_sub ON meme_submissions FOR SELECT TO anon USING (true);
 CREATE POLICY anon_read_meme_scores ON meme_scores FOR SELECT TO anon USING (true);
 
+-- Anon write for game rooms and state (needed for client-side persistence)
+CREATE POLICY anon_write_rooms ON game_rooms FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY anon_update_rooms ON game_rooms FOR UPDATE TO anon USING (true);
+CREATE POLICY anon_write_state ON game_state FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY anon_update_state ON game_state FOR UPDATE TO anon USING (true);
+
 -- Service role full access
 CREATE POLICY service_rooms ON game_rooms FOR ALL TO service_role USING (true);
 CREATE POLICY service_state ON game_state FOR ALL TO service_role USING (true);
