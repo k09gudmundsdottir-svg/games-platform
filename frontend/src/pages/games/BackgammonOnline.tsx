@@ -916,7 +916,7 @@ const BackgammonOnline = () => {
         </div>
 
         {/* Board */}
-        <div ref={boardRef} className="w-full max-w-[100vw] sm:max-w-[900px] rounded-lg sm:rounded-2xl overflow-hidden relative flex-1 flex flex-col min-h-0"
+        <div ref={boardRef} className="w-full max-w-[100vw] sm:max-w-[900px] rounded-lg sm:rounded-2xl overflow-hidden relative flex-1 flex flex-col min-h-0 max-h-[72vh]"
           style={{
             background: "linear-gradient(145deg, hsl(25, 20%, 14%) 0%, hsl(20, 18%, 8%) 100%)",
             border: "1.5px solid hsl(38, 40%, 25%)",
