@@ -42,6 +42,37 @@ router.get('/', async (req, res) => {
   res.json(leaderboard);
 });
 
+// POST /api/leaderboard/record — Record a game result
+router.post('/record', async (req, res) => {
+  const supabase = req.app.locals.supabase;
+  const { recordResult } = require('./elo');
+  const { gameType, winnerId, winnerName, loserId, loserName, isDraw } = req.body;
+
+  if (!gameType) return res.status(400).json({ error: 'gameType required' });
+
+  try {
+    if (isDraw) {
+      const result = await recordResult(supabase, gameType, null, null, null, [
+        { id: winnerId, name: winnerName },
+        { id: loserId, name: loserName },
+      ]);
+      return res.json({ success: true, result });
+    }
+
+    if (!winnerId || !loserId) return res.status(400).json({ error: 'winnerId and loserId required' });
+
+    const result = await recordResult(
+      supabase, gameType, null,
+      { id: winnerId, name: winnerName },
+      { id: loserId, name: loserName }
+    );
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error('[Legends] Record failed:', err);
+    res.status(500).json({ error: 'Failed to record result' });
+  }
+});
+
 // GET /api/leaderboard/player/:playerId
 router.get('/player/:playerId', async (req, res) => {
   const supabase = req.app.locals.supabase;

@@ -243,3 +243,26 @@ export const memeApi = {
   state: (roomId: string, playerId?: string) =>
     request<any>(`/games/meme/state/${roomId}${playerId ? `?playerId=${playerId}` : ''}`),
 };
+
+// ── Legends / Leaderboard ──────────────────────────────────────────────────
+
+export const legendsApi = {
+  recordResult: (opts: {
+    gameType: string;
+    winnerId: string;
+    winnerName: string;
+    loserId: string;
+    loserName: string;
+    isDraw?: boolean;
+  }) =>
+    request<any>('/leaderboard/record', {
+      method: 'POST',
+      body: JSON.stringify(opts),
+    }),
+
+  leaderboard: (game?: string, limit = 50) =>
+    request<any>(`/leaderboard?game=${game || 'All'}&limit=${limit}`),
+
+  playerStats: (playerId: string) =>
+    request<any>(`/leaderboard/player/${playerId}`),
+};

@@ -5,6 +5,7 @@ import GameLayout from "@/components/GameLayout";
 import { playDiceRoll, playPiecePlace, unlockAudio } from "@/lib/sounds";
 import { createClient } from "@supabase/supabase-js";
 import { useAuth } from "@/contexts/AuthContext";
+import { legendsApi } from "@/lib/api";
 
 const supabase = createClient(
   "https://mjphpctvuxmbjhmcscoj.supabase.co",
@@ -56,6 +57,8 @@ const BackgammonOnline = () => {
   const [playerCount, setPlayerCount] = useState(0);
   const [myRole, setMyRole] = useState<PlayerRole | null>(null);
   const [opponentName, setOpponentName] = useState("");
+  const [opponentId, setOpponentId] = useState<string | null>(null);
+  const resultRecordedRef = useRef(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Chat state
@@ -172,8 +175,9 @@ const BackgammonOnline = () => {
       // Extract opponent name
       for (const key of Object.keys(state)) {
         if (key !== role) {
-          const presences = state[key] as Array<{ name?: string }>;
+          const presences = state[key] as Array<{ name?: string; userId?: string }>;
           if (presences?.[0]?.name) setOpponentName(presences[0].name as string);
+          if (presences?.[0]?.userId) setOpponentId(presences[0].userId as string);
         }
       }
       // When both players are in, host starts the game (only if not already playing)
@@ -193,7 +197,7 @@ const BackgammonOnline = () => {
 
     channel.subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
-        await channel.track({ name: playerName || "Player", role });
+        await channel.track({ name: playerName || "Player", role, userId: user?.id || "" });
       }
     });
   }, [playerName]);
@@ -454,6 +458,17 @@ const BackgammonOnline = () => {
         goldOff: gOff, silverOff: sOff, turn: isGold ? "gold" : "silver",
         message: `${playerName || (isGold ? "Gold" : "Silver")} wins!`, winner: winMsg,
       });
+      // Record result to Hall of Legends
+      if (user?.id && opponentId && !resultRecordedRef.current) {
+        resultRecordedRef.current = true;
+        legendsApi.recordResult({
+          gameType: "backgammon",
+          winnerId: user.id,
+          winnerName: playerName || user.username || "Player",
+          loserId: opponentId,
+          loserName: opponentName || "Opponent",
+        }).catch((err) => console.warn("[Legends] Failed to record:", err));
+      }
       return;
     }
 
@@ -596,7 +611,7 @@ const BackgammonOnline = () => {
   const resetGame = () => {
     setBoard([...INITIAL_BOARD]); setDice([]); setMovesLeft([]); setSelectedPoint(null);
     setGoldBar(0); setSilverBar(0); setGoldOff(0); setSilverOff(0);
-    setWinner(null); setPhase("playing");
+    setWinner(null); setPhase("playing"); resultRecordedRef.current = false;
     const startAsGold = isGold;
     setIsMyTurn(startAsGold);
     setMessage(startAsGold ? "Your turn — roll the dice" : "Opponent's turn...");
