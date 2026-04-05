@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, RotateCcw } from "lucide-react";
 import GameLayout from "@/components/GameLayout";
-import { playDiceRoll, playPiecePlace } from "@/lib/sounds";
+import { playDiceRoll, playPiecePlace, unlockAudio } from "@/lib/sounds";
 
 const diceIcons = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6];
 
@@ -128,6 +128,7 @@ const BackgammonGame = () => {
   };
 
   const rollDice = () => {
+    unlockAudio();
     haptic("medium");
     playDiceRoll();
     const d1 = Math.ceil(Math.random() * 6);
@@ -202,6 +203,7 @@ const BackgammonGame = () => {
   };
 
   const handlePointClick = (pointIndex: number) => {
+    unlockAudio();
     haptic("light");
     if (gameState !== "moving") return;
     if (playerBar > 0) {
