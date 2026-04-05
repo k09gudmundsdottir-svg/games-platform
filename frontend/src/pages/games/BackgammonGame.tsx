@@ -562,7 +562,7 @@ const BackgammonGame = () => {
 
   return (
     <GameLayout title="Backgammon" isSkillGame enableChat>
-      <div className="flex flex-col items-center h-full p-1 sm:p-2 md:p-3 gap-1 sm:gap-2">
+      <div className="flex flex-col items-center h-full p-1 sm:p-2 md:p-3 gap-1 sm:gap-2 pt-4 sm:pt-2">
         {/* Scoreboard */}
         <div className="w-full max-w-[900px] flex items-center justify-between px-1 shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">

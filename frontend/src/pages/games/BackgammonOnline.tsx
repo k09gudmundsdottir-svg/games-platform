@@ -883,7 +883,7 @@ const BackgammonOnline = () => {
 
   return (
     <GameLayout title="Backgammon Online" >
-      <div className="flex flex-col items-center h-full p-0 sm:p-2 md:p-3 gap-0 sm:gap-2">
+      <div className="flex flex-col items-center h-full p-0 sm:p-2 md:p-3 gap-0 sm:gap-2 pt-4 sm:pt-2">
         {/* Scoreboard — compact on mobile */}
         <div className="w-full max-w-[100vw] sm:max-w-[900px] flex items-center justify-between px-1 py-0 sm:py-1">
           <div className="flex items-center gap-2 sm:gap-3">
