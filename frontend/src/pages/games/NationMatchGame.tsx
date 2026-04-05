@@ -427,7 +427,7 @@ export default function NationMatchGame() {
         </motion.div>
 
         {/* Two-column grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 gap-2 sm:gap-6">
           {/* Flags Column */}
           <div className="space-y-2">
             <p className="font-display text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">

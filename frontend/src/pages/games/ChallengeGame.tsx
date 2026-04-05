@@ -305,7 +305,7 @@ const ChallengeGame = () => {
   const startGame = useCallback(() => {
     const name = AI_NAMES[Math.floor(Math.random() * AI_NAMES.length)];
     setAiName(name);
-    const q = getQuestions(TOTAL_QUESTIONS);
+    const q = getQuestions({ count: TOTAL_QUESTIONS });
     setQuestions(q);
     setCurrentIndex(0);
     setPlayerScore(0);

@@ -446,7 +446,7 @@ const SpeedQuizGame = () => {
 
   // -- start game --
   const handleStart = (cat: TriviaCategory | "All", diff: Difficulty) => {
-    const q = getQuestions(TOTAL_QUESTIONS, cat);
+    const q = getQuestions({ count: TOTAL_QUESTIONS, category: cat === "All" ? undefined : cat });
     setQuestions(q);
     setDifficulty(diff);
     setCurrentIdx(0);
