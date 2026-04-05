@@ -10,8 +10,12 @@ import gameMeme from "@/assets/game-meme.jpg";
 import gameConnect4 from "@/assets/game-connect4.jpg";
 import gameWar from "@/assets/game-war.jpg";
 import gameSnap from "@/assets/game-snap.jpg";
+import gameGeoquest from "@/assets/game-geoquest.jpg";
+import gameSpeedquiz from "@/assets/game-speedquiz.jpg";
+import gameChallenge from "@/assets/game-challenge.jpg";
+import gameNationmatch from "@/assets/game-nationmatch.jpg";
 
-const categories = ["All", "Board", "Card", "Party"];
+const categories = ["All", "Board", "Card", "Party", "Trivia"];
 
 const games = [
   { title: "Chess", image: gameChess, players: "2", duration: "10-60 min", rating: 4.9, category: "Board", online: 12847, requiresCamera: false, slug: "chess" },
@@ -25,12 +29,20 @@ const games = [
   { title: "War", image: gameWar, players: "2", duration: "15-30 min", rating: 4.3, category: "Card", online: 2104, requiresCamera: false, slug: "war" },
   { title: "Snap", image: gameSnap, players: "1", duration: "5-15 min", rating: 4.4, category: "Card", online: 1876, requiresCamera: false, slug: "snap" },
   { title: "What Do You Meme", image: gameMeme, players: "3-8", duration: "20-45 min", rating: 4.7, category: "Party", online: 4521, requiresCamera: true, slug: "what-do-you-meme" },
+  { title: "GeoQuest", image: gameGeoquest, players: "1-100", duration: "5-20 min", rating: 4.8, category: "Trivia", online: 481, requiresCamera: false, slug: "geoquest", externalUrl: "https://trivia.azurenexus.com" },
+  { title: "Speed Quiz", image: gameSpeedquiz, players: "1-50", duration: "3-10 min", rating: 4.6, category: "Trivia", online: 276, requiresCamera: false, slug: "speed-quiz", externalUrl: "https://trivia.azurenexus.com/quiz" },
+  { title: "Challenge", image: gameChallenge, players: "2", duration: "5-15 min", rating: 4.7, category: "Trivia", online: 154, requiresCamera: false, slug: "challenge", externalUrl: "https://trivia.azurenexus.com/challenge" },
+  { title: "Nation Match", image: gameNationmatch, players: "1", duration: "5-10 min", rating: 4.5, category: "Trivia", online: 203, requiresCamera: false, slug: "nation-match", externalUrl: "https://trivia.azurenexus.com/soul.html" },
 ];
 
 const GamesGrid = () => {
   const [active, setActive] = useState("All");
 
   const filtered = active === "All" ? games : games.filter((g) => g.category === active);
+
+  const isAll = active === "All";
+  const mainGames = isAll ? filtered.filter((g) => g.category !== "Trivia") : filtered;
+  const triviaGames = isAll ? filtered.filter((g) => g.category === "Trivia") : [];
 
   return (
     <section id="games-grid" className="py-24 relative">
@@ -67,12 +79,35 @@ const GamesGrid = () => {
           ))}
         </div>
 
-        {/* Grid */}
+        {/* Main Games Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filtered.map((game, i) => (
+          {mainGames.map((game, i) => (
             <GameCard key={game.title} {...game} index={i} />
           ))}
         </div>
+
+        {/* Trivia Divider & Grid (All view only) */}
+        {isAll && triviaGames.length > 0 && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              className="flex items-center gap-4 my-14"
+            >
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+              <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/60 border border-border/30">
+                <span className="text-[10px] font-display font-bold text-primary uppercase tracking-widest">Trivia</span>
+              </div>
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+            </motion.div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {triviaGames.map((game, i) => (
+                <GameCard key={game.title} {...game} index={i} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </section>
   );

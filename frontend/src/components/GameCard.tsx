@@ -17,11 +17,12 @@ interface GameCardProps {
   index: number;
   requiresCamera?: boolean;
   slug: string;
+  externalUrl?: string;
 }
 
 const skillGames = ["Chess", "Backgammon", "Checkers", "Connect Four", "Hearts", "Gin Rummy", "Solitaire"];
 
-const GameCard = ({ title, image, players, duration, rating, category, online, index, requiresCamera, slug }: GameCardProps) => {
+const GameCard = ({ title, image, players, duration, rating, category, online, index, requiresCamera, slug, externalUrl }: GameCardProps) => {
   const [roomOpen, setRoomOpen] = useState(false);
   const [matchOpen, setMatchOpen] = useState(false);
   const navigate = useNavigate();
@@ -30,6 +31,10 @@ const GameCard = ({ title, image, players, duration, rating, category, online, i
   const isSkillGame = skillGames.includes(title);
 
   const handlePlay = () => {
+    if (externalUrl) {
+      window.open(externalUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
     if (!isLoggedIn) {
       navigate("/login");
       return;
@@ -84,9 +89,15 @@ const GameCard = ({ title, image, players, duration, rating, category, online, i
             <button onClick={handlePlay} className="flex-1 py-2.5 rounded-lg bg-secondary text-secondary-foreground font-display font-semibold text-sm hover:bg-primary hover:text-primary-foreground transition-all duration-300">
               {isSkillGame ? "Play" : "Play Now"}
             </button>
-            <button onClick={() => navigate(`/play/${slug}`)} className="px-3 py-2.5 rounded-lg bg-secondary/60 text-muted-foreground font-display font-medium text-sm hover:text-foreground hover:bg-secondary transition-all duration-300 border border-border/30">
-              Preview
-            </button>
+            {externalUrl ? (
+              <a href={externalUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2.5 rounded-lg bg-secondary/60 text-muted-foreground font-display font-medium text-sm hover:text-foreground hover:bg-secondary transition-all duration-300 border border-border/30">
+                Visit
+              </a>
+            ) : (
+              <button onClick={() => navigate(`/play/${slug}`)} className="px-3 py-2.5 rounded-lg bg-secondary/60 text-muted-foreground font-display font-medium text-sm hover:text-foreground hover:bg-secondary transition-all duration-300 border border-border/30">
+                Preview
+              </button>
+            )}
           </div>
         </div>
       </motion.div>

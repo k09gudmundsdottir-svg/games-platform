@@ -24,6 +24,7 @@ import SolitaireGame from "./pages/games/SolitaireGame.tsx";
 import HeartsGame from "./pages/games/HeartsGame.tsx";
 import GinRummyGame from "./pages/games/GinRummyGame.tsx";
 import BackgammonOnline from "./pages/games/BackgammonOnline.tsx";
+import GeoQuestGame from "./pages/games/GeoQuestGame.tsx";
 import PrivacyPage from "./pages/PrivacyPage.tsx";
 import TermsPage from "./pages/TermsPage.tsx";
 
@@ -68,6 +69,7 @@ const App = () => (
               <Route path="/play/solitaire" element={<SolitaireGame />} />
               <Route path="/play/hearts" element={<HeartsGame />} />
               <Route path="/play/gin-rummy" element={<GinRummyGame />} />
+              <Route path="/play/geoquest" element={<GeoQuestGame />} />
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/terms" element={<TermsPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
