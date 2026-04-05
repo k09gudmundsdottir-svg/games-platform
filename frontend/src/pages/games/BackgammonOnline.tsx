@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, RotateCcw, Copy, Check, Users } from "lucide-react";
+import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, RotateCcw, Users } from "lucide-react";
 import GameLayout from "@/components/GameLayout";
 import { playDiceRoll, playPiecePlace, unlockAudio } from "@/lib/sounds";
 import { createClient } from "@supabase/supabase-js";
+import { useAuth } from "@/contexts/AuthContext";
 
 const supabase = createClient(
   "https://mjphpctvuxmbjhmcscoj.supabase.co",
@@ -47,12 +48,11 @@ type PlayerRole = "gold" | "silver";
 // Silver moves low→high (indices 0→23), negative board values
 
 const BackgammonOnline = () => {
+  const { user } = useAuth();
   // Lobby state
   const [phase, setPhase] = useState<Phase>("lobby");
-  const [playerName, setPlayerName] = useState("");
+  const [playerName, setPlayerName] = useState(user?.username || "");
   const [roomCode, setRoomCode] = useState("");
-  const [joinCode, setJoinCode] = useState("");
-  const [copied, setCopied] = useState(false);
   const [playerCount, setPlayerCount] = useState(0);
   const [myRole, setMyRole] = useState<PlayerRole | null>(null);
   const [opponentName, setOpponentName] = useState("");
@@ -64,6 +64,9 @@ const BackgammonOnline = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Reactions
+  const [floatingReaction, setFloatingReaction] = useState<{ emoji: string; id: number } | null>(null);
 
   // Game state
   const [board, setBoard] = useState<number[]>([...INITIAL_BOARD]);
@@ -95,6 +98,9 @@ const BackgammonOnline = () => {
     };
   }, []);
 
+  const gameIdRef = useRef<string | null>(new URLSearchParams(window.location.search).get("game"));
+  const phaseRef = useRef<Phase>("lobby");
+
   const broadcastState = useCallback((updates: {
     board: number[]; dice: number[]; movesLeft: number[];
     goldBar: number; silverBar: number; goldOff: number; silverOff: number;
@@ -103,6 +109,15 @@ const BackgammonOnline = () => {
     channelRef.current?.send({
       type: "broadcast", event: "game-state", payload: updates,
     });
+    // Persist to Supabase for recovery on refresh
+    if (gameIdRef.current) {
+      supabase.from("games").update({
+        game_state: updates,
+        current_turn: updates.turn === "gold" ? "white" : "black",
+        last_move_at: new Date().toISOString(),
+        ...(updates.winner ? { status: "completed", ended_at: new Date().toISOString() } : {}),
+      }).eq("id", gameIdRef.current).then(() => {});
+    }
   }, []);
 
   const setupChannel = useCallback((code: string, role: PlayerRole) => {
@@ -124,6 +139,13 @@ const BackgammonOnline = () => {
       if (payload.winner) {
         setWinner(payload.winner);
         setPhase("gameover");
+      }
+    });
+
+    channel.on("broadcast", { event: "reaction" }, ({ payload }) => {
+      if (payload.from !== role) {
+        setFloatingReaction({ emoji: payload.emoji, id: Date.now() });
+        setTimeout(() => setFloatingReaction(null), 2500);
       }
     });
 
@@ -154,8 +176,8 @@ const BackgammonOnline = () => {
           if (presences?.[0]?.name) setOpponentName(presences[0].name as string);
         }
       }
-      // When both players are in, host starts the game
-      if (count >= 2 && role === "gold") {
+      // When both players are in, host starts the game (only if not already playing)
+      if (count >= 2 && role === "gold" && phaseRef.current === "lobby") {
         setTimeout(() => {
           channel.send({ type: "broadcast", event: "start-game", payload: {} });
           setPhase("playing");
@@ -176,23 +198,118 @@ const BackgammonOnline = () => {
     });
   }, [playerName]);
 
-  const createRoom = () => {
+  // Keep phaseRef in sync for use inside memoized callbacks
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+
+  const [matchmaking, setMatchmaking] = useState(false);
+
+  // Sync name from auth
+  useEffect(() => {
+    if (user?.username && !playerName) setPlayerName(user.username);
+  }, [user]);
+
+  // ── Auto-start from challenge system (?game=UUID) ────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gameId = params.get("game");
+    if (!gameId || !user?.id) return;
+    gameIdRef.current = gameId;
+
+    const loadGame = async () => {
+      const { data: game, error } = await supabase
+        .from("games")
+        .select("*")
+        .eq("id", gameId)
+        .single();
+
+      if (error || !game) {
+        console.error("Failed to load game:", error);
+        return;
+      }
+
+      // Determine role
+      const role: PlayerRole = game.white_player_id === user.id ? "gold" : "silver";
+      const name = user.username || "Player";
+
+      setPlayerName(name);
+      setRoomCode(gameId.slice(0, 6).toUpperCase());
+      setMyRole(role);
+      unlockAudio();
+
+      // Restore saved game state if a game is in progress (has turn field = moves were made)
+      const saved = game.game_state;
+      if (saved && saved.turn && saved.board && Array.isArray(saved.board)) {
+        setPhase("playing");
+        setBoard(saved.board);
+        setDice(saved.dice || []);
+        setMovesLeft(saved.movesLeft || []);
+        setGoldBar(saved.goldBar || 0);
+        setSilverBar(saved.silverBar || 0);
+        setGoldOff(saved.goldOff || 0);
+        setSilverOff(saved.silverOff || 0);
+        setIsMyTurn(saved.turn === role);
+        setMessage(saved.turn === role ? "Your turn — roll the dice" : "Opponent's turn...");
+        if (saved.winner) { setWinner(saved.winner); setPhase("gameover"); }
+      }
+
+      setupChannel(`game-${gameId}`, role);
+    };
+
+    loadGame();
+  }, [user?.id]);
+
+  const startMatchmaking = () => {
     unlockAudio();
-    const code = genRoomCode();
-    setRoomCode(code);
-    setMyRole("gold");
-    window.location.hash = `${code}-gold-${encodeURIComponent(playerName)}`;
-    setupChannel(code, "gold");
+    setMatchmaking(true);
+
+    // Join matchmaking channel via Supabase Realtime presence
+    const mmChannel = supabase.channel("mm-backgammon", {
+      config: { presence: { key: `player-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` } },
+    });
+
+    mmChannel.on("presence", { event: "sync" }, () => {
+      const state = mmChannel.presenceState();
+      const players = Object.entries(state);
+
+      if (players.length >= 2) {
+        // Sort by join time to assign roles deterministically
+        const sorted = players.sort((a: any, b: any) =>
+          (a[1][0]?.joined_at || 0) - (b[1][0]?.joined_at || 0)
+        );
+        const myKey = mmChannel.presenceRef;
+        const isFirst = sorted[0][0] === myKey || sorted[0][1][0]?.name === playerName;
+
+        // First player = gold (creates room), second = silver
+        const code = sorted[0][1][0]?.room_code || genRoomCode();
+        const role: PlayerRole = isFirst ? "gold" : "silver";
+
+        setRoomCode(code);
+        setMyRole(role);
+        window.location.hash = `${code}-${role}-${encodeURIComponent(playerName)}`;
+        setupChannel(code, role);
+        setMatchmaking(false);
+        mmChannel.unsubscribe();
+      }
+    });
+
+    mmChannel.subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await mmChannel.track({
+          name: playerName,
+          room_code: genRoomCode(),
+          joined_at: Date.now(),
+        });
+      }
+    });
+
+    // Store for cleanup
+    (window as any).__mmChannel = mmChannel;
   };
 
-  const joinRoom = () => {
-    unlockAudio();
-    const code = joinCode.trim().toUpperCase();
-    if (code.length !== 6) return;
-    setRoomCode(code);
-    setMyRole("silver");
-    window.location.hash = `${code}-silver-${encodeURIComponent(playerName)}`;
-    setupChannel(code, "silver");
+  const cancelMatchmaking = () => {
+    setMatchmaking(false);
+    const ch = (window as any).__mmChannel;
+    if (ch) { ch.unsubscribe(); (window as any).__mmChannel = null; }
   };
 
   // Auto-rejoin on refresh if hash contains room info
@@ -212,13 +329,8 @@ const BackgammonOnline = () => {
         setTimeout(() => setupChannel(code, role), 100);
       }
     }
+    return () => cancelMatchmaking();
   }, []);
-
-  const copyCode = () => {
-    navigator.clipboard.writeText(roomCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   // ── Game logic ──
 
@@ -583,11 +695,16 @@ const BackgammonOnline = () => {
   const Checker = ({ isPlayerGold, isSelected, isSelectable, small, dimmed }: {
     isPlayerGold: boolean; isSelected?: boolean; isSelectable?: boolean; small?: boolean; dimmed?: boolean;
   }) => {
-    const size = small ? "w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" : "w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-11 lg:h-11";
+    const sizeClass = small ? "sm:w-5 sm:h-5 md:w-6 md:h-6" : "sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-11 lg:h-11";
+    const sizeStyle = small
+      ? { width: "clamp(14px, 3.8vw, 20px)", height: "clamp(14px, 3.8vw, 20px)" }
+      : { width: "clamp(20px, 6.2vw, 28px)", height: "clamp(20px, 6.2vw, 28px)" };
     return (
-      <div className={`${size} rounded-full relative flex-shrink-0 transition-all duration-200 ${
+      <div className={`${sizeClass} rounded-full relative flex-shrink-0 transition-all duration-200 ${
         isSelected ? "scale-110 z-20" : ""
-      } ${isSelectable ? "cursor-pointer" : ""} ${dimmed ? "opacity-50" : ""}`}>
+      } ${isSelectable ? "cursor-pointer" : ""} ${dimmed ? "opacity-50" : ""}`}
+        style={sizeStyle}
+      >
         <div className={`absolute inset-0 rounded-full ${
           isPlayerGold
             ? "bg-gradient-to-b from-[hsl(38,90%,62%)] to-[hsl(32,85%,40%)]"
@@ -624,12 +741,13 @@ const BackgammonOnline = () => {
       <motion.div
         key={index}
         ref={(el: HTMLDivElement | null) => { pointRefs.current[index] = el; }}
-        className={`flex-1 flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center relative cursor-pointer min-w-[28px] touch-manipulation`}
+        className={`flex-1 flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center relative cursor-pointer touch-manipulation`}
+        style={{ minWidth: "clamp(20px, 6vw, 28px)" }}
         onClick={() => handlePointClick(index)}
         whileTap={{ scale: 0.95 }}
         transition={{ duration: 0.1 }}
       >
-        <svg viewBox="0 0 48 120" className="w-full h-[90px] sm:h-[120px] md:h-[160px] lg:h-[200px]" preserveAspectRatio="none">
+        <svg viewBox="0 0 48 120" className="w-full sm:h-[150px] md:h-[170px] lg:h-[200px]" style={{ height: "clamp(90px, 17vh, 140px)" }} preserveAspectRatio="none">
           <defs>
             <linearGradient id={`tri-o-${index}`} x1="0" y1={isTop ? "0" : "1"} x2="0" y2={isTop ? "1" : "0"}>
               <stop offset="0%" stopColor={isEven ? "hsl(38, 55%, 38%)" : "hsl(25, 25%, 22%)"} />
@@ -649,9 +767,11 @@ const BackgammonOnline = () => {
             />
           )}
         </svg>
-        <div className={`absolute ${isTop ? "top-1" : "bottom-1"} flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center`} style={{ gap: "1px" }}>
+        <div className={`absolute ${isTop ? "top-0" : "bottom-0"} flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center`}>
           {Array.from({ length: maxShow }).map((_, j) => (
-            <motion.div key={j} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: j * 0.03 }}>
+            <motion.div key={j} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: j * 0.03 }}
+              style={j > 0 ? { marginTop: isTop ? "clamp(-8px, -1.2vw, -2px)" : undefined, marginBottom: !isTop ? "clamp(-8px, -1.2vw, -2px)" : undefined } : undefined}
+            >
               <Checker
                 isPlayerGold={pointIsGold}
                 isSelected={isSelected && j === maxShow - 1}
@@ -684,38 +804,46 @@ const BackgammonOnline = () => {
           <div className="w-full max-w-md space-y-6">
             <div className="text-center space-y-2">
               <h2 className="font-display text-2xl font-bold text-foreground">Backgammon Online</h2>
-              <p className="text-sm text-muted-foreground font-body">Play with a friend in real-time</p>
+              <p className="text-sm text-muted-foreground font-body">Play with a friend in real-time with video chat</p>
             </div>
             <div className="space-y-3">
-              <input
-                value={playerName} onChange={e => setPlayerName(e.target.value)}
-                placeholder="Your name"
-                className="w-full px-4 py-3 rounded-xl bg-secondary/50 border border-border/30 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40 font-body"
-              />
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                onClick={createRoom} disabled={!playerName.trim()}
-                className="w-full px-6 py-3 rounded-xl font-display font-semibold text-sm text-primary-foreground disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, hsl(38, 90%, 55%), hsl(28, 85%, 42%))", boxShadow: "0 6px 24px -4px hsl(38, 90%, 55% / 0.4)" }}>
-                Create Room
-              </motion.button>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-border/30" />
-                <span className="text-xs text-muted-foreground font-body">or</span>
-                <div className="flex-1 h-px bg-border/30" />
-              </div>
-              <div className="flex gap-2">
+              {!user && (
                 <input
-                  value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} maxLength={6}
-                  placeholder="Room code"
-                  className="flex-1 px-4 py-3 rounded-xl bg-secondary/50 border border-border/30 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40 font-display tracking-widest text-center"
+                  value={playerName} onChange={e => setPlayerName(e.target.value)}
+                  placeholder="Your name"
+                  className="w-full px-4 py-3 rounded-xl bg-secondary/50 border border-border/30 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40 font-body"
                 />
+              )}
+              {user && (
+                <p className="text-center text-sm text-foreground font-display font-semibold">Playing as {playerName}</p>
+              )}
+              {!matchmaking ? (
                 <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                  onClick={joinRoom} disabled={joinCode.trim().length !== 6 || !playerName.trim()}
-                  className="px-6 py-3 rounded-xl font-display font-semibold text-sm border border-primary/30 text-primary disabled:opacity-40"
-                  style={{ background: "hsl(38, 90%, 55% / 0.1)" }}>
-                  Join
+                  onClick={startMatchmaking} disabled={!playerName.trim()}
+                  className="w-full px-6 py-3 rounded-xl font-display font-semibold text-sm text-primary-foreground disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg, hsl(38, 90%, 55%), hsl(28, 85%, 42%))", boxShadow: "0 6px 24px -4px hsl(38, 90%, 55% / 0.4)" }}>
+                  Play Online
                 </motion.button>
-              </div>
+              ) : (
+                <div className="space-y-3 text-center">
+                  <div className="flex items-center justify-center gap-3 py-4">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                      className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full"
+                    />
+                    <span className="font-display font-semibold text-foreground">Finding opponent...</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-body">
+                    Waiting for another player to join. Video chat will start automatically.
+                  </p>
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                    onClick={cancelMatchmaking}
+                    className="px-6 py-2 rounded-xl font-display font-medium text-sm border border-border/30 text-muted-foreground hover:text-foreground transition-colors">
+                    Cancel
+                  </motion.button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -729,18 +857,8 @@ const BackgammonOnline = () => {
         <div className="flex items-center justify-center h-full p-4">
           <div className="w-full max-w-md space-y-6 text-center">
             <div className="space-y-2">
-              <h2 className="font-display text-xl font-bold text-foreground">Waiting for opponent...</h2>
-              <p className="text-sm text-muted-foreground font-body">
-                Share this code with your friend
-              </p>
-            </div>
-            <div className="flex items-center justify-center gap-3">
-              <span className="font-display text-4xl font-bold tracking-[0.3em] text-primary">{roomCode}</span>
-              <motion.button whileTap={{ scale: 0.9 }} onClick={copyCode}
-                className="w-10 h-10 rounded-xl flex items-center justify-center border border-border/30 text-muted-foreground hover:text-foreground transition-colors"
-                style={{ background: "hsl(240, 8%, 12%)" }}>
-                {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-              </motion.button>
+              <h2 className="font-display text-xl font-bold text-foreground">Opponent found!</h2>
+              <p className="text-sm text-muted-foreground font-body">Connecting...</p>
             </div>
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Users className="w-4 h-4" />
@@ -764,9 +882,9 @@ const BackgammonOnline = () => {
 
   return (
     <GameLayout title="Backgammon Online" >
-      <div className="flex flex-col items-center justify-center h-full p-1 sm:p-2 md:p-3 gap-1 sm:gap-2">
-        {/* Scoreboard */}
-        <div className="w-full max-w-[900px] flex items-center justify-between mb-1 sm:mb-2 px-1">
+      <div className="flex flex-col items-center justify-center h-full p-0 sm:p-2 md:p-3 gap-0 sm:gap-2">
+        {/* Scoreboard — compact on mobile */}
+        <div className="w-full max-w-[100vw] sm:max-w-[900px] flex items-center justify-between px-1 py-0 sm:py-1">
           <div className="flex items-center gap-2 sm:gap-3">
             <Checker isPlayerGold={!isGold} small />
             <div>
@@ -798,7 +916,7 @@ const BackgammonOnline = () => {
         </div>
 
         {/* Board */}
-        <div ref={boardRef} className="w-full max-w-[900px] rounded-xl sm:rounded-2xl overflow-hidden relative"
+        <div ref={boardRef} className="w-full max-w-[100vw] sm:max-w-[900px] rounded-lg sm:rounded-2xl overflow-hidden relative"
           style={{
             background: "linear-gradient(145deg, hsl(25, 20%, 14%) 0%, hsl(20, 18%, 8%) 100%)",
             border: "1.5px solid hsl(38, 40%, 25%)",
@@ -807,13 +925,14 @@ const BackgammonOnline = () => {
           {/* Point numbers - top */}
           <div className="flex px-1 pt-2">
             <div className="flex-1 flex">{topLeft.map(i => <div key={i} className="flex-1 text-center"><span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span></div>)}</div>
-            <div className="w-8 sm:w-10 md:w-14" />
+            <div className="sm:w-10 md:w-14" style={{ width: "clamp(24px, 7vw, 32px)" }} />
             <div className="flex-1 flex">{topRight.map(i => <div key={i} className="flex-1 text-center"><span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span></div>)}</div>
           </div>
           {/* Top half */}
           <div className="flex px-1">
             <div className="flex-1 flex">{topLeft.map(i => renderPoint(i, true))}</div>
-            <div className="w-8 sm:w-10 md:w-14 flex flex-col items-center justify-start gap-0.5 sm:gap-1 pt-2 sm:pt-3"
+            <div className="sm:w-10 md:w-14 flex flex-col items-center justify-start gap-0.5 sm:gap-1 pt-2 sm:pt-3"
+              style={{ width: "clamp(24px, 7vw, 32px)" }}
               style={{ background: "linear-gradient(180deg, hsl(20, 15%, 7%) 0%, hsl(20, 12%, 10%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}>
               {Array.from({ length: silverBar }).map((_, j) => <Checker key={j} isPlayerGold={false} small />)}
             </div>
@@ -850,7 +969,8 @@ const BackgammonOnline = () => {
           {/* Bottom half */}
           <div className="flex px-1">
             <div className="flex-1 flex">{bottomLeft.map(i => renderPoint(i, false))}</div>
-            <div className="w-8 sm:w-10 md:w-14 flex flex-col-reverse items-center justify-start gap-0.5 sm:gap-1 pb-2 sm:pb-3"
+            <div className="sm:w-10 md:w-14 flex flex-col-reverse items-center justify-start gap-0.5 sm:gap-1 pb-2 sm:pb-3"
+              style={{ width: "clamp(24px, 7vw, 32px)" }}
               style={{ background: "linear-gradient(180deg, hsl(20, 12%, 10%) 0%, hsl(20, 15%, 7%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}>
               {Array.from({ length: goldBar }).map((_, j) => <Checker key={j} isPlayerGold small />)}
             </div>
@@ -859,7 +979,7 @@ const BackgammonOnline = () => {
           {/* Point numbers - bottom */}
           <div className="flex px-1 pb-2">
             <div className="flex-1 flex">{bottomLeft.map(i => <div key={i} className="flex-1 text-center"><span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span></div>)}</div>
-            <div className="w-8 sm:w-10 md:w-14" />
+            <div className="sm:w-10 md:w-14" style={{ width: "clamp(24px, 7vw, 32px)" }} />
             <div className="flex-1 flex">{bottomRight.map(i => <div key={i} className="flex-1 text-center"><span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span></div>)}</div>
           </div>
         </div>
@@ -894,7 +1014,67 @@ const BackgammonOnline = () => {
           <p className="text-xs text-muted-foreground font-body mt-2 animate-pulse">Waiting for {oppLabel} to roll...</p>
         )}
       </div>
-      {phase === "playing" && <ChatBubble />}
+      {phase === "playing" && typeof window !== "undefined" && window.innerWidth >= 640 && <ChatBubble />}
+
+      {/* Floating reaction */}
+      <AnimatePresence>
+        {floatingReaction && (
+          <motion.div
+            key={floatingReaction.id}
+            initial={{ opacity: 0, scale: 0.3, y: 0 }}
+            animate={{ opacity: 1, scale: 1.4, y: -120 }}
+            exit={{ opacity: 0, scale: 0.5, y: -200 }}
+            transition={{ duration: 2, ease: "easeOut" }}
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] pointer-events-none"
+          >
+            <span className="text-7xl sm:text-8xl drop-shadow-2xl">{floatingReaction.emoji}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Emoji reaction bar */}
+      {phase === "playing" && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-card/90 backdrop-blur-sm border-t border-border/30">
+          <div className="flex items-center justify-center gap-0.5 px-1 py-1.5 overflow-x-auto scrollbar-hide">
+            {[
+              { emoji: "👏", label: "Great move" },
+              { emoji: "🎲", label: "Lucky roll" },
+              { emoji: "😤", label: "Frustration" },
+              { emoji: "😂", label: "Funny" },
+              { emoji: "🔥", label: "On fire" },
+              { emoji: "💀", label: "Devastating" },
+              { emoji: "🧠", label: "Big brain" },
+              { emoji: "😱", label: "Shocked" },
+              { emoji: "🫡", label: "Respect" },
+              { emoji: "💤", label: "Hurry up" },
+              { emoji: "🍀", label: "Lucky" },
+              { emoji: "👀", label: "I see you" },
+              { emoji: "🥶", label: "Cold blooded" },
+              { emoji: "🏳️", label: "I give up" },
+              { emoji: "🤝", label: "Good game" },
+            ].map(({ emoji, label }) => (
+              <motion.button
+                key={emoji}
+                whileTap={{ scale: 1.5 }}
+                onClick={() => {
+                  channelRef.current?.send({
+                    type: "broadcast",
+                    event: "reaction",
+                    payload: { emoji, from: myRole },
+                  });
+                  // Show own reaction briefly
+                  setFloatingReaction({ emoji, id: Date.now() });
+                  setTimeout(() => setFloatingReaction(null), 2500);
+                }}
+                className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-secondary/60 active:bg-primary/20 transition-colors"
+                title={label}
+              >
+                <span className="text-lg sm:text-xl">{emoji}</span>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
     </GameLayout>
   );
 };

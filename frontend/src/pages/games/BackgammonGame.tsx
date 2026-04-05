@@ -435,11 +435,15 @@ const BackgammonGame = () => {
   const bottomRight = [5, 4, 3, 2, 1, 0];
 
   const Checker = ({ isPlayer, isSelected, isSelectable, small }: { isPlayer: boolean; isSelected?: boolean; isSelectable?: boolean; small?: boolean }) => {
-    const size = small ? "w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" : "w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-11 lg:h-11";
+    const sizeClass = small ? "sm:w-5 sm:h-5 md:w-6 md:h-6" : "sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-11 lg:h-11";
+    const sizeStyle = small
+      ? { width: "clamp(14px, 3.8vw, 20px)", height: "clamp(14px, 3.8vw, 20px)" }
+      : { width: "clamp(20px, 6.2vw, 28px)", height: "clamp(20px, 6.2vw, 28px)" };
     return (
-      <div className={`${size} rounded-full relative flex-shrink-0 transition-all duration-200 ${
+      <div className={`${sizeClass} rounded-full relative flex-shrink-0 transition-all duration-200 ${
         isSelected ? "scale-110 z-20" : ""
       } ${isSelectable ? "cursor-pointer" : ""}`}
+        style={sizeStyle}
       >
         {/* Outer ring */}
         <div className={`absolute inset-0 rounded-full ${
@@ -478,13 +482,14 @@ const BackgammonGame = () => {
       <motion.div
         key={index}
         ref={(el: HTMLDivElement | null) => { pointRefs.current[index] = el; }}
-        className={`flex-1 flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center relative cursor-pointer min-w-[28px] touch-manipulation`}
+        className={`flex-1 flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center relative cursor-pointer touch-manipulation`}
+        style={{ minWidth: "clamp(20px, 6vw, 28px)" }}
         onClick={() => handlePointClick(index)}
         whileTap={{ scale: 0.95 }}
         transition={{ duration: 0.1 }}
       >
         {/* Triangle */}
-        <svg viewBox="0 0 48 120" className="w-full h-[90px] sm:h-[120px] md:h-[160px] lg:h-[200px]" preserveAspectRatio="none">
+        <svg viewBox="0 0 48 120" className="w-full sm:h-[120px] md:h-[160px] lg:h-[200px]" style={{ height: "clamp(60px, 12vh, 90px)" }} preserveAspectRatio="none">
           <defs>
             <linearGradient id={`tri-${index}`} x1="0" y1={isTop ? "0" : "1"} x2="0" y2={isTop ? "1" : "0"}>
               <stop offset="0%" stopColor={isEven ? "hsl(38, 55%, 38%)" : "hsl(25, 25%, 22%)"} />
@@ -507,15 +512,14 @@ const BackgammonGame = () => {
         </svg>
 
         {/* Pieces stack */}
-        <div className={`absolute ${isTop ? "top-1" : "bottom-1"} flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center`}
-          style={{ gap: "1px" }}
-        >
+        <div className={`absolute ${isTop ? "top-0" : "bottom-0"} flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center`}>
           {Array.from({ length: maxShow }).map((_, j) => (
             <motion.div
               key={j}
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: j * 0.03 }}
+              style={j > 0 ? { marginTop: isTop ? "clamp(-8px, -1.2vw, -2px)" : undefined, marginBottom: !isTop ? "clamp(-8px, -1.2vw, -2px)" : undefined } : undefined}
             >
               <Checker
                 isPlayer={isPlayer}
@@ -645,7 +649,7 @@ const BackgammonGame = () => {
                 </div>
               ))}
             </div>
-            <div className="w-8 sm:w-10 md:w-14" />
+            <div className="sm:w-10 md:w-14" style={{ width: "clamp(24px, 7vw, 32px)" }} />
             <div className="flex-1 flex">
               {topRight.map(i => (
                 <div key={i} className="flex-1 text-center">
@@ -661,7 +665,8 @@ const BackgammonGame = () => {
               {topLeft.map(i => renderPoint(i, true))}
             </div>
             {/* Bar center */}
-            <div className="w-8 sm:w-10 md:w-14 flex flex-col items-center justify-start gap-0.5 sm:gap-1 pt-2 sm:pt-3"
+            <div className="sm:w-10 md:w-14 flex flex-col items-center justify-start gap-0.5 sm:gap-1 pt-2 sm:pt-3"
+              style={{ width: "clamp(24px, 7vw, 32px)" }}
               style={{ background: "linear-gradient(180deg, hsl(20, 15%, 7%) 0%, hsl(20, 12%, 10%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}
             >
               {Array.from({ length: computerBar }).map((_, j) => (
@@ -720,7 +725,8 @@ const BackgammonGame = () => {
             <div className="flex-1 flex">
               {bottomLeft.map(i => renderPoint(i, false))}
             </div>
-            <div className="w-8 sm:w-10 md:w-14 flex flex-col-reverse items-center justify-start gap-0.5 sm:gap-1 pb-2 sm:pb-3"
+            <div className="sm:w-10 md:w-14 flex flex-col-reverse items-center justify-start gap-0.5 sm:gap-1 pb-2 sm:pb-3"
+              style={{ width: "clamp(24px, 7vw, 32px)" }}
               style={{ background: "linear-gradient(180deg, hsl(20, 12%, 10%) 0%, hsl(20, 15%, 7%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}
             >
               {Array.from({ length: playerBar }).map((_, j) => (
@@ -741,7 +747,7 @@ const BackgammonGame = () => {
                 </div>
               ))}
             </div>
-            <div className="w-8 sm:w-10 md:w-14" />
+            <div className="sm:w-10 md:w-14" style={{ width: "clamp(24px, 7vw, 32px)" }} />
             <div className="flex-1 flex">
               {bottomRight.map(i => (
                 <div key={i} className="flex-1 text-center">
