@@ -747,7 +747,7 @@ const BackgammonOnline = () => {
         whileTap={{ scale: 0.95 }}
         transition={{ duration: 0.1 }}
       >
-        <svg viewBox="0 0 48 120" className="w-full sm:h-[150px] md:h-[170px] lg:h-[200px]" style={{ height: "clamp(90px, 17vh, 140px)" }} preserveAspectRatio="none">
+        <svg viewBox="0 0 48 120" className="w-full h-full" preserveAspectRatio="none">
           <defs>
             <linearGradient id={`tri-o-${index}`} x1="0" y1={isTop ? "0" : "1"} x2="0" y2={isTop ? "1" : "0"}>
               <stop offset="0%" stopColor={isEven ? "hsl(38, 55%, 38%)" : "hsl(25, 25%, 22%)"} />
@@ -882,7 +882,7 @@ const BackgammonOnline = () => {
 
   return (
     <GameLayout title="Backgammon Online" >
-      <div className="flex flex-col items-center justify-center h-full p-0 sm:p-2 md:p-3 gap-0 sm:gap-2">
+      <div className="flex flex-col items-center h-full p-0 sm:p-2 md:p-3 gap-0 sm:gap-2">
         {/* Scoreboard — compact on mobile */}
         <div className="w-full max-w-[100vw] sm:max-w-[900px] flex items-center justify-between px-1 py-0 sm:py-1">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -916,30 +916,29 @@ const BackgammonOnline = () => {
         </div>
 
         {/* Board */}
-        <div ref={boardRef} className="w-full max-w-[100vw] sm:max-w-[900px] rounded-lg sm:rounded-2xl overflow-hidden relative"
+        <div ref={boardRef} className="w-full max-w-[100vw] sm:max-w-[900px] rounded-lg sm:rounded-2xl overflow-hidden relative flex-1 flex flex-col min-h-0"
           style={{
             background: "linear-gradient(145deg, hsl(25, 20%, 14%) 0%, hsl(20, 18%, 8%) 100%)",
             border: "1.5px solid hsl(38, 40%, 25%)",
             boxShadow: "0 20px 60px -15px hsl(0 0% 0% / 0.7), inset 0 1px 0 hsl(38, 30%, 25% / 0.3)",
           }}>
           {/* Point numbers - top */}
-          <div className="flex px-1 pt-2">
+          <div className="flex px-1 pt-1 shrink-0">
             <div className="flex-1 flex">{topLeft.map(i => <div key={i} className="flex-1 text-center"><span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span></div>)}</div>
             <div className="sm:w-10 md:w-14" style={{ width: "clamp(24px, 7vw, 32px)" }} />
             <div className="flex-1 flex">{topRight.map(i => <div key={i} className="flex-1 text-center"><span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span></div>)}</div>
           </div>
           {/* Top half */}
-          <div className="flex px-1">
+          <div className="flex px-1 flex-1 min-h-0">
             <div className="flex-1 flex">{topLeft.map(i => renderPoint(i, true))}</div>
             <div className="sm:w-10 md:w-14 flex flex-col items-center justify-start gap-0.5 sm:gap-1 pt-2 sm:pt-3"
-              style={{ width: "clamp(24px, 7vw, 32px)" }}
-              style={{ background: "linear-gradient(180deg, hsl(20, 15%, 7%) 0%, hsl(20, 12%, 10%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}>
+              style={{ width: "clamp(24px, 7vw, 32px)", background: "linear-gradient(180deg, hsl(20, 15%, 7%) 0%, hsl(20, 12%, 10%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}>
               {Array.from({ length: silverBar }).map((_, j) => <Checker key={j} isPlayerGold={false} small />)}
             </div>
             <div className="flex-1 flex">{topRight.map(i => renderPoint(i, true))}</div>
           </div>
           {/* Center with dice */}
-          <div className="flex items-center justify-center gap-2 sm:gap-4 py-2 sm:py-3 mx-1 my-0.5 sm:my-1 rounded-lg"
+          <div className="flex items-center justify-center gap-2 sm:gap-4 py-1.5 sm:py-3 mx-1 rounded-lg shrink-0"
             style={{ background: "linear-gradient(90deg, hsl(20, 15%, 7%) 0%, hsl(20, 12%, 10%) 50%, hsl(20, 15%, 7%) 100%)" }}>
             {DiceIcon1 && DiceIcon2 && (
               <div className="flex items-center gap-1.5 sm:gap-2.5">
@@ -967,17 +966,16 @@ const BackgammonOnline = () => {
             )}
           </div>
           {/* Bottom half */}
-          <div className="flex px-1">
+          <div className="flex px-1 flex-1 min-h-0">
             <div className="flex-1 flex">{bottomLeft.map(i => renderPoint(i, false))}</div>
             <div className="sm:w-10 md:w-14 flex flex-col-reverse items-center justify-start gap-0.5 sm:gap-1 pb-2 sm:pb-3"
-              style={{ width: "clamp(24px, 7vw, 32px)" }}
-              style={{ background: "linear-gradient(180deg, hsl(20, 12%, 10%) 0%, hsl(20, 15%, 7%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}>
+              style={{ width: "clamp(24px, 7vw, 32px)", background: "linear-gradient(180deg, hsl(20, 12%, 10%) 0%, hsl(20, 15%, 7%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}>
               {Array.from({ length: goldBar }).map((_, j) => <Checker key={j} isPlayerGold small />)}
             </div>
             <div className="flex-1 flex">{bottomRight.map(i => renderPoint(i, false))}</div>
           </div>
           {/* Point numbers - bottom */}
-          <div className="flex px-1 pb-2">
+          <div className="flex px-1 pb-1 shrink-0">
             <div className="flex-1 flex">{bottomLeft.map(i => <div key={i} className="flex-1 text-center"><span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span></div>)}</div>
             <div className="sm:w-10 md:w-14" style={{ width: "clamp(24px, 7vw, 32px)" }} />
             <div className="flex-1 flex">{bottomRight.map(i => <div key={i} className="flex-1 text-center"><span className="text-[7px] sm:text-[9px] font-display text-muted-foreground/40 tracking-widest">{i + 1}</span></div>)}</div>
@@ -985,7 +983,7 @@ const BackgammonOnline = () => {
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-2 sm:gap-3 mt-2 sm:mt-4">
+        <div className="flex items-center gap-2 sm:gap-3 mt-1 sm:mt-4 shrink-0">
           {isMyTurn && dice.length === 0 && phase === "playing" && (
             <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={rollDice}
               className="px-5 py-2 sm:px-8 sm:py-3 rounded-lg sm:rounded-xl font-display font-semibold text-xs sm:text-sm text-primary-foreground tracking-wide"

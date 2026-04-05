@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#0f0f1a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c8a24e"/>
+      <stop offset="100%" style="stop-color:#e8c86e"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Shield outline -->
+  <path d="M256 80 L400 140 L400 280 C400 360 340 420 256 440 C172 420 112 360 112 280 L112 140 Z"
+        fill="none" stroke="url(#accent)" stroke-width="12" stroke-linejoin="round"/>
+  <!-- Gamepad icon inside shield -->
+  <g transform="translate(256,260)" fill="url(#accent)">
+    <!-- Controller body -->
+    <rect x="-80" y="-30" width="160" height="60" rx="30" fill="url(#accent)"/>
+    <!-- Left stick (d-pad) -->
+    <rect x="-55" y="-18" width="6" height="36" rx="2" fill="#1a1a2e"/>
+    <rect x="-70" y="-3" width="36" height="6" rx="2" fill="#1a1a2e"/>
+    <!-- Right buttons -->
+    <circle cx="40" cy="-10" r="6" fill="#1a1a2e"/>
+    <circle cx="55" cy="0" r="6" fill="#1a1a2e"/>
+    <circle cx="40" cy="10" r="6" fill="#1a1a2e"/>
+    <circle cx="25" cy="0" r="6" fill="#1a1a2e"/>
+  </g>
+  <!-- "PV" text -->
+  <text x="256" y="180" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif"
+        font-weight="800" font-size="72" fill="url(#accent)" letter-spacing="8">PV</text>
+</svg>

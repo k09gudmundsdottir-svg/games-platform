@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Search, Link2, Copy, Check, Loader2, Swords, Monitor } from "lucide-react";
+import { X, Search, Link2, Copy, Check, Loader2, Swords, Monitor, Users, Send } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { usePresence } from "@/contexts/PresenceContext";
 
 interface MatchmakingDialogProps {
   open: boolean;
@@ -11,11 +12,21 @@ interface MatchmakingDialogProps {
 }
 
 const MatchmakingDialog = ({ open, onClose, gameTitle, slug }: MatchmakingDialogProps) => {
-  const [mode, setMode] = useState<"choose" | "matchmaking" | "friend-link">("choose");
+  const [mode, setMode] = useState<"choose" | "matchmaking" | "friend-link" | "online-friends">("choose");
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
+  const [inviteSent, setInviteSent] = useState<string | null>(null);
   const friendLink = `https://games.azurenexus.com/play/${slug || gameTitle.toLowerCase()}-online`;
+
+  // Safe presence hook — won't crash if context unavailable
+  let onlineUsers: any[] = [];
+  let sendInviteFn: any = () => {};
+  try {
+    const presence = usePresence();
+    onlineUsers = presence.onlineUsers || [];
+    sendInviteFn = presence.sendInvite;
+  } catch { /* presence not available */ }
 
   useEffect(() => {
     if (mode !== "matchmaking") { setSearchTime(0); return; }
@@ -68,10 +79,22 @@ const MatchmakingDialog = ({ open, onClose, gameTitle, slug }: MatchmakingDialog
                 {/* Choose Mode */}
                 {mode === "choose" && (
                   <motion.div key="choose" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-                    <button
-                      onClick={() => setMode("matchmaking")}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-secondary/50 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 group"
-                    >
+                    <button onClick={() => setMode("online-friends")}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-primary/30 bg-primary/5 hover:border-primary/50 hover:bg-primary/10 transition-all duration-300 group">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:shadow-glow transition-shadow relative">
+                        <Users className="w-5 h-5 text-primary" />
+                        {onlineUsers.length > 0 && (
+                          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-card">{onlineUsers.length}</span>
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className="font-display font-semibold text-foreground">Play a Friend</p>
+                        <p className="text-xs font-body text-muted-foreground">{onlineUsers.length > 0 ? `${onlineUsers.length} online — invite to play` : "See who's online"}</p>
+                      </div>
+                    </button>
+
+                    <button onClick={() => setMode("matchmaking")}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-secondary/50 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 group">
                       <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:shadow-glow transition-shadow">
                         <Search className="w-5 h-5 text-primary" />
                       </div>
@@ -81,23 +104,19 @@ const MatchmakingDialog = ({ open, onClose, gameTitle, slug }: MatchmakingDialog
                       </div>
                     </button>
 
-                    <button
-                      onClick={() => setMode("friend-link")}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-secondary/50 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 group"
-                    >
+                    <button onClick={() => setMode("friend-link")}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-secondary/50 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 group">
                       <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:shadow-glow transition-shadow">
                         <Link2 className="w-5 h-5 text-primary" />
                       </div>
                       <div className="text-left">
-                        <p className="font-display font-semibold text-foreground">Play a Friend</p>
-                        <p className="text-xs font-body text-muted-foreground">Share a link — no code needed</p>
+                        <p className="font-display font-semibold text-foreground">Share Link</p>
+                        <p className="text-xs font-body text-muted-foreground">Send a link — no account needed</p>
                       </div>
                     </button>
 
-                    <button
-                      onClick={() => { handleClose(); navigate(`/play/${slug || gameTitle.toLowerCase()}`); }}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-secondary/50 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 group"
-                    >
+                    <button onClick={() => { handleClose(); navigate(`/play/${slug || gameTitle.toLowerCase()}`); }}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-border/50 bg-secondary/50 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 group">
                       <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center group-hover:shadow-glow transition-shadow">
                         <Monitor className="w-5 h-5 text-primary" />
                       </div>
@@ -106,6 +125,45 @@ const MatchmakingDialog = ({ open, onClose, gameTitle, slug }: MatchmakingDialog
                         <p className="text-xs font-body text-muted-foreground">Practice against AI — start instantly</p>
                       </div>
                     </button>
+                  </motion.div>
+                )}
+
+                {/* Online Friends */}
+                {mode === "online-friends" && (
+                  <motion.div key="friends" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+                    <button onClick={() => setMode("choose")} className="text-muted-foreground hover:text-foreground text-xs">← Back</button>
+                    {onlineUsers.length === 0 ? (
+                      <div className="text-center py-6 space-y-3">
+                        <Users className="w-10 h-10 text-muted-foreground mx-auto" />
+                        <p className="font-display font-semibold text-foreground">No one online</p>
+                        <p className="text-xs text-muted-foreground">Share a link instead</p>
+                        <button onClick={() => setMode("friend-link")} className="px-4 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold border border-primary/20">Share Link</button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        {onlineUsers.map((u) => (
+                          <div key={u.id} className="flex items-center justify-between p-3 rounded-xl border border-border/30 bg-secondary/30">
+                            <div className="flex items-center gap-3">
+                              <div className="relative">
+                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                                  {u.username?.charAt(0)?.toUpperCase() || "?"}
+                                </div>
+                                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-card" />
+                              </div>
+                              <div>
+                                <p className="font-display font-semibold text-foreground text-sm">{u.username}</p>
+                                <p className="text-[10px] text-muted-foreground">{u.status === "in-game" ? `Playing ${u.currentGame}` : "Online"}</p>
+                              </div>
+                            </div>
+                            <button onClick={() => { sendInviteFn(u.id, gameTitle, slug || gameTitle.toLowerCase()); setInviteSent(u.id); }}
+                              disabled={inviteSent === u.id}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${inviteSent === u.id ? "bg-green-500/10 text-green-400" : "bg-primary/10 text-primary hover:bg-primary/20"}`}>
+                              {inviteSent === u.id ? <><Check className="w-3 h-3" /> Sent</> : <><Send className="w-3 h-3" /> Invite</>}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </motion.div>
                 )}
 

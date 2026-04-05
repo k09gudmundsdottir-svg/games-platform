@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const { recordResult } = require('../../scoring/elo');
 const router = Router();
 
 // Board: 24 points (indices 0-23), plus bar (index 24) and off (index 25)
@@ -493,6 +494,8 @@ router.post('/move', async (req, res) => {
 
   if (gameStatus === 'won') {
     await supabase.from('game_rooms').update({ status: 'finished' }).eq('id', roomId);
+    const loser = winner.id === bs.player1.id ? bs.player2 : bs.player1;
+    await recordResult(supabase, 'backgammon', roomId, winner, loser);
   }
 
   res.json({

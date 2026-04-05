@@ -10,3 +10,13 @@ config.p2p = {
     iceTransportPolicy: "all"
 };
 config.useStunTurn = true;
+
+// Minimal toolbar for game overlay
+config.toolbarButtons = ["microphone", "camera", "hangup", "tileview"];
+config.prejoinPageEnabled = false;
+config.disableDeepLinking = true;
+config.enableWelcomePage = false;
+config.hideConferenceSubject = true;
+config.hideConferenceTimer = true;
+config.disableInviteFunctions = true;
+config.notifications = [];

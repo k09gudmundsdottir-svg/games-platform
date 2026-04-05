@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const { recordResult } = require('../../scoring/elo');
 const router = Router();
 
 const BOARD_SIZE = 8;
@@ -291,6 +292,10 @@ router.post('/move', async (req, res) => {
 
   if (gameStatus !== 'active') {
     await supabase.from('game_rooms').update({ status: 'finished' }).eq('id', roomId);
+    if (winner) {
+      const loser = winner.id === bs.player1.id ? bs.player2 : bs.player1;
+      await recordResult(supabase, 'checkers', roomId, winner, loser);
+    }
   }
 
   res.json({

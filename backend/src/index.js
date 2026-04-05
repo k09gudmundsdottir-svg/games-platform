@@ -11,6 +11,8 @@ const connect4Routes = require('./games/connect4/routes');
 const checkersRoutes = require('./games/checkers/routes');
 const snapRoutes = require('./games/snap/routes');
 const warRoutes = require('./games/war/routes');
+const videoRoutes = require('./video/routes');
+const leaderboardRoutes = require('./scoring/routes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -42,6 +44,8 @@ app.use('/api/games/connect4', connect4Routes);
 app.use('/api/games/checkers', checkersRoutes);
 app.use('/api/games/snap', snapRoutes);
 app.use('/api/games/war', warRoutes);
+app.use('/api/video', videoRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 app.listen(PORT, () => {
   console.log(`AzureNexus Games API running on port ${PORT}`);

@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { Chess } = require('chess.js');
+const { recordResult } = require('../../scoring/elo');
 const router = Router();
 
 // In-memory chess instances per room (for move validation)
@@ -139,10 +140,17 @@ router.post('/move', async (req, res) => {
     move_data: { from, to, san: move.san, promotion: move.promotion, captured: move.captured },
   });
 
-  // Update room status if game over
+  // Update room status if game over + record Legends score
   if (gameStatus !== 'active') {
     await supabase.from('game_rooms').update({ status: 'finished' }).eq('id', roomId);
     games.delete(roomId);
+
+    if (gameStatus === 'checkmate' && winner) {
+      const loser = winner.id === bs.white.id ? bs.black : bs.white;
+      await recordResult(supabase, 'chess', roomId, winner, loser);
+    } else if (gameStatus === 'stalemate' || gameStatus === 'draw') {
+      await recordResult(supabase, 'chess', roomId, null, null, [bs.white, bs.black]);
+    }
   }
 
   res.json({

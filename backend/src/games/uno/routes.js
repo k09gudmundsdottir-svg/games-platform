@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const { recordResult } = require('../../scoring/elo');
 const router = Router();
 
 const COLORS = ['red', 'blue', 'green', 'yellow'];
@@ -280,6 +281,13 @@ router.post('/play-card', async (req, res) => {
 
   if (gameStatus !== 'active') {
     await supabase.from('game_rooms').update({ status: 'finished' }).eq('id', roomId);
+    if (winner) {
+      // Record win against each other player
+      const losers = bs.players.filter(p => p.id !== winner.id);
+      for (const loser of losers) {
+        await recordResult(supabase, 'uno', roomId, winner, { id: loser.id, name: loser.name });
+      }
+    }
   }
 
   res.json({

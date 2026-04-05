@@ -489,7 +489,7 @@ const BackgammonGame = () => {
         transition={{ duration: 0.1 }}
       >
         {/* Triangle */}
-        <svg viewBox="0 0 48 120" className="w-full sm:h-[120px] md:h-[160px] lg:h-[200px]" style={{ height: "clamp(60px, 12vh, 90px)" }} preserveAspectRatio="none">
+        <svg viewBox="0 0 48 120" className="w-full h-full" preserveAspectRatio="none">
           <defs>
             <linearGradient id={`tri-${index}`} x1="0" y1={isTop ? "0" : "1"} x2="0" y2={isTop ? "1" : "0"}>
               <stop offset="0%" stopColor={isEven ? "hsl(38, 55%, 38%)" : "hsl(25, 25%, 22%)"} />
@@ -561,9 +561,9 @@ const BackgammonGame = () => {
 
   return (
     <GameLayout title="Backgammon" isSkillGame enableChat>
-      <div className="flex flex-col items-center justify-center h-full p-1 sm:p-2 md:p-3 gap-1 sm:gap-2">
+      <div className="flex flex-col items-center h-full p-1 sm:p-2 md:p-3 gap-1 sm:gap-2">
         {/* Scoreboard */}
-        <div className="w-full max-w-[900px] flex items-center justify-between mb-1 sm:mb-2 px-1">
+        <div className="w-full max-w-[900px] flex items-center justify-between px-1 shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">
             <Checker isPlayer={false} small />
             <div>
@@ -603,7 +603,7 @@ const BackgammonGame = () => {
         </div>
 
         {/* Board frame */}
-        <div ref={boardRef} className="w-full max-w-[900px] rounded-xl sm:rounded-2xl overflow-hidden relative"
+        <div ref={boardRef} className="w-full max-w-[900px] rounded-xl sm:rounded-2xl overflow-hidden relative flex-1 flex flex-col min-h-0"
           style={{
             background: "linear-gradient(145deg, hsl(25, 20%, 14%) 0%, hsl(20, 18%, 8%) 100%)",
             border: "1.5px solid hsl(38, 40%, 25%)",
@@ -641,7 +641,7 @@ const BackgammonGame = () => {
             )}
           </AnimatePresence>
           {/* Point numbers - top */}
-          <div className="flex px-1 pt-2">
+          <div className="flex px-1 pt-1 shrink-0">
             <div className="flex-1 flex">
               {topLeft.map(i => (
                 <div key={i} className="flex-1 text-center">
@@ -660,14 +660,13 @@ const BackgammonGame = () => {
           </div>
 
           {/* Top half of board */}
-          <div className="flex px-1">
+          <div className="flex px-1 flex-1 min-h-0">
             <div className="flex-1 flex">
               {topLeft.map(i => renderPoint(i, true))}
             </div>
             {/* Bar center */}
             <div className="sm:w-10 md:w-14 flex flex-col items-center justify-start gap-0.5 sm:gap-1 pt-2 sm:pt-3"
-              style={{ width: "clamp(24px, 7vw, 32px)" }}
-              style={{ background: "linear-gradient(180deg, hsl(20, 15%, 7%) 0%, hsl(20, 12%, 10%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}
+              style={{ width: "clamp(24px, 7vw, 32px)", background: "linear-gradient(180deg, hsl(20, 15%, 7%) 0%, hsl(20, 12%, 10%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}
             >
               {Array.from({ length: computerBar }).map((_, j) => (
                 <Checker key={j} isPlayer={false} small />
@@ -679,7 +678,7 @@ const BackgammonGame = () => {
           </div>
 
           {/* Center divider with dice */}
-          <div className="flex items-center justify-center gap-2 sm:gap-4 py-2 sm:py-3 mx-1 my-0.5 sm:my-1 rounded-lg"
+          <div className="flex items-center justify-center gap-2 sm:gap-4 py-1.5 sm:py-3 mx-1 rounded-lg shrink-0"
             style={{ background: "linear-gradient(90deg, hsl(20, 15%, 7%) 0%, hsl(20, 12%, 10%) 50%, hsl(20, 15%, 7%) 100%)" }}
           >
             {DiceIcon1 && DiceIcon2 && (
@@ -721,13 +720,12 @@ const BackgammonGame = () => {
           </div>
 
           {/* Bottom half of board */}
-          <div className="flex px-1">
+          <div className="flex px-1 flex-1 min-h-0">
             <div className="flex-1 flex">
               {bottomLeft.map(i => renderPoint(i, false))}
             </div>
             <div className="sm:w-10 md:w-14 flex flex-col-reverse items-center justify-start gap-0.5 sm:gap-1 pb-2 sm:pb-3"
-              style={{ width: "clamp(24px, 7vw, 32px)" }}
-              style={{ background: "linear-gradient(180deg, hsl(20, 12%, 10%) 0%, hsl(20, 15%, 7%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}
+              style={{ width: "clamp(24px, 7vw, 32px)", background: "linear-gradient(180deg, hsl(20, 12%, 10%) 0%, hsl(20, 15%, 7%) 100%)", borderLeft: "1px solid hsl(38, 25%, 18%)", borderRight: "1px solid hsl(38, 25%, 18%)" }}
             >
               {Array.from({ length: playerBar }).map((_, j) => (
                 <Checker key={j} isPlayer small />
@@ -739,7 +737,7 @@ const BackgammonGame = () => {
           </div>
 
           {/* Point numbers - bottom */}
-          <div className="flex px-1 pb-2">
+          <div className="flex px-1 pb-1 shrink-0">
             <div className="flex-1 flex">
               {bottomLeft.map(i => (
                 <div key={i} className="flex-1 text-center">
@@ -759,7 +757,7 @@ const BackgammonGame = () => {
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-2 sm:gap-3 mt-2 sm:mt-4">
+        <div className="flex items-center gap-2 sm:gap-3 mt-1 sm:mt-4 shrink-0">
           {gameState === "rolling" && (
             <motion.button
               whileHover={{ scale: 1.04 }}
@@ -800,7 +798,7 @@ const BackgammonGame = () => {
 
         {/* Move history */}
         {moveHistory.length > 0 && (
-          <div className="flex items-center gap-2 mt-3 flex-wrap justify-center">
+          <div className="flex items-center gap-2 mt-1 flex-wrap justify-center shrink-0">
             {moveHistory.slice(-4).map((m, i) => (
               <span key={i} className="text-[10px] font-body text-muted-foreground/50 px-2 py-0.5 rounded-md"
                 style={{ background: "hsl(240, 8%, 10%)" }}

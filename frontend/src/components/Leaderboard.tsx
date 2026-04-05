@@ -1,21 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Trophy, Flame, TrendingUp, Medal, Crown, Award, Target } from "lucide-react";
+import { Trophy, Flame, TrendingUp, Medal, Crown, Award, Target, Loader2 } from "lucide-react";
 
 const gameFilters = ["All", "Chess", "Backgammon", "Checkers", "Connect Four", "UNO", "War", "Snap", "What Do You Meme"];
 
-const leaderboardData = [
-  { rank: 1, name: "DragonSlayer", avatar: "DS", rating: 2847, winRate: 78, winStreak: 18, flag: "🇺🇸", games: "Chess" },
-  { rank: 2, name: "QueenGambit", avatar: "QG", rating: 2791, winRate: 74, winStreak: 14, flag: "🇬🇧", games: "Chess" },
-  { rank: 3, name: "CardShark99", avatar: "CS", rating: 2683, winRate: 71, winStreak: 11, flag: "🇨🇦", games: "UNO" },
-  { rank: 4, name: "BlitzMaster", avatar: "BM", rating: 2654, winRate: 69, winStreak: 9, flag: "🇩🇪", games: "Connect Four" },
-  { rank: 5, name: "MemeQueen", avatar: "MQ", rating: 2598, winRate: 67, winStreak: 7, flag: "🇦🇺", games: "What Do You Meme" },
-  { rank: 6, name: "NightOwlX", avatar: "NO", rating: 2541, winRate: 65, winStreak: 6, flag: "🇯🇵", games: "Backgammon" },
-  { rank: 7, name: "StrategyKing", avatar: "SK", rating: 2487, winRate: 63, winStreak: 5, flag: "🇫🇷", games: "Checkers" },
-  { rank: 8, name: "LuckyDraw", avatar: "LD", rating: 2432, winRate: 61, winStreak: 4, flag: "🇧🇷", games: "War" },
-  { rank: 9, name: "SnapMaster", avatar: "SM", rating: 2398, winRate: 59, winStreak: 3, flag: "🇰🇷", games: "Snap" },
-  { rank: 10, name: "DiceKing", avatar: "DK", rating: 2356, winRate: 58, winStreak: 2, flag: "🇮🇳", games: "Backgammon" },
-];
+interface LeaderboardEntry {
+  rank: number;
+  playerId: string;
+  name: string;
+  game: string;
+  rating: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  totalGames: number;
+  winRate: number;
+  winStreak: number;
+  bestStreak: number;
+  lastPlayed: string | null;
+}
 
 const getRankIcon = (rank: number) => {
   if (rank === 1) return <Crown className="w-5 h-5 text-primary" />;
@@ -32,8 +35,26 @@ const getRankStyle = (rank: number) => {
 
 const Leaderboard = () => {
   const [activeFilter, setActiveFilter] = useState("All");
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = activeFilter === "All" ? leaderboardData : leaderboardData.filter((p) => p.games === activeFilter);
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      setLoading(true);
+      try {
+        const params = activeFilter !== "All" ? `?game=${encodeURIComponent(activeFilter)}` : "";
+        const res = await fetch(`/api/leaderboard${params}`);
+        if (res.ok) {
+          const data = await res.json();
+          setLeaderboard(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch leaderboard:", err);
+      }
+      setLoading(false);
+    };
+    fetchLeaderboard();
+  }, [activeFilter]);
 
   return (
     <section id="leaderboard" className="py-24 relative">
@@ -74,10 +95,18 @@ const Leaderboard = () => {
             <span className="text-[10px] font-display font-semibold text-muted-foreground uppercase tracking-wider text-center">Streak</span>
           </div>
 
+          {/* Loading */}
+          {loading && (
+            <div className="px-6 py-12 text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
+              <p className="text-sm font-body text-muted-foreground">Loading rankings...</p>
+            </div>
+          )}
+
           {/* Rows */}
-          {filtered.map((player, i) => (
+          {!loading && leaderboard.map((player, i) => (
             <motion.div
-              key={player.name}
+              key={`${player.playerId}-${player.game}`}
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
@@ -87,13 +116,13 @@ const Leaderboard = () => {
               <div className="flex items-center justify-center w-8 h-8 rounded-lg">{getRankIcon(player.rank)}</div>
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-display text-xs font-bold shrink-0 ${player.rank === 1 ? "bg-primary/15 text-primary border border-primary/30" : "bg-secondary border border-border/30 text-muted-foreground"}`}>
-                  {player.avatar}
+                  {player.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-display font-semibold text-foreground truncate">{player.name}</p>
-                    <span className="text-sm">{player.flag}</span>
                   </div>
+                  <p className="text-[10px] text-muted-foreground">{player.wins}W {player.losses}L{player.draws > 0 ? ` ${player.draws}D` : ""}</p>
                 </div>
               </div>
               <div className="text-center">
@@ -104,7 +133,7 @@ const Leaderboard = () => {
                 <span className="text-xs font-body text-foreground">{player.winRate}%</span>
               </div>
               <div className="text-center hidden md:block">
-                <p className="text-[10px] font-body text-muted-foreground truncate">{player.games}</p>
+                <p className="text-[10px] font-body text-muted-foreground truncate">{player.game}</p>
               </div>
               <div className="flex items-center justify-center gap-1">
                 <Flame className="w-3.5 h-3.5 text-primary" />
@@ -113,17 +142,13 @@ const Leaderboard = () => {
             </motion.div>
           ))}
 
-          {filtered.length === 0 && (
-            <div className="px-6 py-12 text-center">
-              <p className="text-sm font-body text-muted-foreground">No players found for this game yet.</p>
+          {!loading && leaderboard.length === 0 && (
+            <div className="px-6 py-16 text-center">
+              <Trophy className="w-10 h-10 text-primary/30 mx-auto mb-4" />
+              <p className="font-display font-semibold text-foreground mb-1">No legends yet</p>
+              <p className="text-sm font-body text-muted-foreground">Challenge a friend and be the first on the board.</p>
             </div>
           )}
-
-          <div className="px-6 py-4 text-center">
-            <button className="px-6 py-2 rounded-full text-sm font-display font-medium text-muted-foreground hover:text-foreground bg-secondary hover:bg-secondary/80 border border-border/30 hover:border-primary/20 transition-all duration-300">
-              View Full Rankings
-            </button>
-          </div>
         </motion.div>
       </div>
     </section>

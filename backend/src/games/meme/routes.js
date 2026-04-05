@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const { recordResult } = require('../../scoring/elo');
 const router = Router();
 
 // 30+ Imgflip meme template IDs and names
@@ -471,8 +472,12 @@ router.post('/judge-pick', async (req, res) => {
 
   if (updateErr) return res.status(500).json({ error: updateErr.message });
 
-  if (gameStatus === 'won') {
+  if (gameStatus === 'won' && gameWinner) {
     await supabase.from('game_rooms').update({ status: 'finished' }).eq('id', roomId);
+    const losers = bs.players.filter(p => p.id !== gameWinner.id);
+    for (const loser of losers) {
+      await recordResult(supabase, 'meme', roomId, { id: gameWinner.id, name: gameWinner.name }, { id: loser.id, name: loser.name });
+    }
   }
 
   res.json({

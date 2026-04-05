@@ -1,10 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  "https://mjphpctvuxmbjhmcscoj.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1qcGhwY3R2dXhtYmpobWNzY29qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMjgzMzQsImV4cCI6MjA4NzgwNDMzNH0.dsmzK7SS4_RSC5wbN6ifhjRlOSbfDZjIcfh2MKkDQIs"
-);
+import { supabase } from "@/lib/supabase";
 
 export interface UserProfile {
   id: string;
@@ -25,7 +20,7 @@ export interface UserProfile {
 interface AuthContextType {
   user: UserProfile | null;
   isLoggedIn: boolean;
-  login: (method: "google" | "email" | "signup", email?: string, password?: string) => Promise<string | null>;
+  login: (method: "google" | "apple" | "email" | "signup", email?: string, password?: string) => Promise<string | null>;
   logout: () => void;
   loading: boolean;
 }
@@ -90,10 +85,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (method: "google" | "email" | "signup", email?: string, password?: string) => {
+  const login = async (method: "google" | "apple" | "email" | "signup", email?: string, password?: string) => {
     if (method === "google") {
       await supabase.auth.signInWithOAuth({
         provider: "google",
+        options: { redirectTo: window.location.origin },
+      });
+    } else if (method === "apple") {
+      await supabase.auth.signInWithOAuth({
+        provider: "apple",
         options: { redirectTo: window.location.origin },
       });
     } else if (method === "signup" && email && password) {
