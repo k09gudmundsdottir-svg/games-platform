@@ -361,18 +361,19 @@ const ChallengeGame = () => {
         const aiCorrect = Math.random() < accuracy;
         let aiPick: string;
 
+        const correctAnswer = q.answers[q.correctIndex];
         if (aiCorrect) {
-          aiPick = q.correct;
+          aiPick = correctAnswer;
         } else {
-          const wrongOptions = q.options.filter((o) => o !== q.correct);
+          const wrongOptions = q.answers.filter((o) => o !== correctAnswer);
           aiPick = wrongOptions[Math.floor(Math.random() * wrongOptions.length)];
         }
 
         setAiAnswer(aiPick);
 
         // Calculate scores
-        const playerCorrect = answer === q.correct;
-        const aiIsCorrect = aiPick === q.correct;
+        const playerCorrect = answer === correctAnswer;
+        const aiIsCorrect = aiPick === correctAnswer;
 
         const timeBonus = Math.round((timeLeft / TIMER_SECONDS) * MAX_TIME_BONUS);
         const playerRoundScore = playerCorrect ? BASE_SCORE + timeBonus : 0;
@@ -623,9 +624,9 @@ const ChallengeGame = () => {
 
               {/* Answer buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {currentQuestion.options.map((option, idx) => {
+                {currentQuestion.answers.map((option, idx) => {
                   const isPlayerPick = playerAnswer === option;
-                  const isCorrectAnswer = option === currentQuestion.correct;
+                  const isCorrectAnswer = idx === currentQuestion.correctIndex;
                   const isAiPick = aiAnswer === option;
 
                   let btnClass =
