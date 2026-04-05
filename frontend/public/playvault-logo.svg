@@ -1,33 +1,89 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e"/>
-      <stop offset="100%" style="stop-color:#0f0f1a"/>
+      <stop offset="0%" style="stop-color:#141420"/>
+      <stop offset="100%" style="stop-color:#0a0a12"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#c8a24e"/>
-      <stop offset="100%" style="stop-color:#e8c86e"/>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0d060"/>
+      <stop offset="50%" style="stop-color:#d4af37"/>
+      <stop offset="100%" style="stop-color:#b8922a"/>
     </linearGradient>
+    <linearGradient id="goldLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5e088"/>
+      <stop offset="100%" style="stop-color:#d4af37"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="innerShadow">
+      <feOffset dx="0" dy="2"/>
+      <feGaussianBlur stdDeviation="2"/>
+      <feComposite operator="out" in="SourceGraphic"/>
+      <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.4 0"/>
+      <feBlend in="SourceGraphic"/>
+    </filter>
   </defs>
+
   <!-- Background rounded square -->
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <!-- Shield outline -->
-  <path d="M256 80 L400 140 L400 280 C400 360 340 420 256 440 C172 420 112 360 112 280 L112 140 Z"
-        fill="none" stroke="url(#accent)" stroke-width="12" stroke-linejoin="round"/>
-  <!-- Gamepad icon inside shield -->
-  <g transform="translate(256,260)" fill="url(#accent)">
-    <!-- Controller body -->
-    <rect x="-80" y="-30" width="160" height="60" rx="30" fill="url(#accent)"/>
-    <!-- Left stick (d-pad) -->
-    <rect x="-55" y="-18" width="6" height="36" rx="2" fill="#1a1a2e"/>
-    <rect x="-70" y="-3" width="36" height="6" rx="2" fill="#1a1a2e"/>
-    <!-- Right buttons -->
-    <circle cx="40" cy="-10" r="6" fill="#1a1a2e"/>
-    <circle cx="55" cy="0" r="6" fill="#1a1a2e"/>
-    <circle cx="40" cy="10" r="6" fill="#1a1a2e"/>
-    <circle cx="25" cy="0" r="6" fill="#1a1a2e"/>
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+
+  <!-- Subtle border -->
+  <rect x="4" y="4" width="504" height="504" rx="104" fill="none" stroke="url(#gold)" stroke-width="3" opacity="0.3"/>
+
+  <!-- Decorative corner accents -->
+  <path d="M60 130 L60 80 Q60 60 80 60 L130 60" fill="none" stroke="url(#gold)" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+  <path d="M382 60 L432 60 Q452 60 452 80 L452 130" fill="none" stroke="url(#gold)" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+  <path d="M60 382 L60 432 Q60 452 80 452 L130 452" fill="none" stroke="url(#gold)" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+  <path d="M382 452 L432 452 Q452 452 452 432 L452 382" fill="none" stroke="url(#gold)" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- GT Letters -->
+  <g filter="url(#glow)">
+    <!-- G letter -->
+    <path d="
+      M 100 180
+      Q 100 130, 155 115
+      Q 210 100, 240 130
+      L 222 158
+      Q 200 140, 170 140
+      Q 130 140, 130 185
+      L 130 300
+      Q 130 345, 170 345
+      Q 205 345, 210 320
+      L 210 280
+      L 175 280
+      L 175 252
+      L 245 252
+      L 245 335
+      Q 240 380, 190 395
+      Q 135 410, 108 375
+      Q 95 355, 95 320
+      L 95 195
+      Q 95 180, 100 180
+      Z
+    " fill="url(#goldLight)" filter="url(#innerShadow)"/>
+
+    <!-- T letter -->
+    <path d="
+      M 270 118
+      L 440 118
+      L 440 155
+      L 375 155
+      L 375 395
+      L 335 395
+      L 335 155
+      L 270 155
+      Z
+    " fill="url(#gold)" filter="url(#innerShadow)"/>
   </g>
-  <!-- "PV" text -->
-  <text x="256" y="180" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif"
-        font-weight="800" font-size="72" fill="url(#accent)" letter-spacing="8">PV</text>
+
+  <!-- Small diamond accent between letters -->
+  <rect x="250" y="248" width="14" height="14" rx="2" transform="rotate(45 257 255)" fill="url(#gold)" opacity="0.6"/>
+
+  <!-- Subtle reflection line -->
+  <line x1="100" y1="430" x2="412" y2="430" stroke="url(#gold)" stroke-width="2" opacity="0.15"/>
 </svg>
