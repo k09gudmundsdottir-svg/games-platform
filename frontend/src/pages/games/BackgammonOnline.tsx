@@ -95,21 +95,43 @@ const BackgammonOnline = () => {
   const myOff = isGold ? goldOff : silverOff;
   const oppOff = isGold ? silverOff : goldOff;
 
-  // Victory celebration
+  // Victory celebration — multi-wave confetti
   useEffect(() => {
     if (phase !== "gameover" || !winner) return;
     playVictoryFanfare();
-    const emojis = ["🎉", "🏆", "👏", "⭐", "🥇", "✨", "🎊", "💫", "🔥", "👑"];
-    const particles = Array.from({ length: 40 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: -10 - Math.random() * 20,
-      emoji: emojis[Math.floor(Math.random() * emojis.length)],
-      delay: Math.random() * 1.5,
-      size: 16 + Math.random() * 20,
-    }));
-    setConfetti(particles);
-    const t = setTimeout(() => setConfetti([]), 5000);
+
+    const emojis = ["🎉", "🏆", "👏", "⭐", "🥇", "✨", "🎊", "💫", "🔥", "👑", "🍾", "💎", "🌟", "🎆", "🎇"];
+    const allParticles: typeof confetti = [];
+    let id = 0;
+
+    // Wave 1: burst from center (0-0.5s)
+    for (let i = 0; i < 25; i++) {
+      allParticles.push({
+        id: id++, x: 45 + Math.random() * 10, y: 40 + Math.random() * 10,
+        emoji: emojis[Math.floor(Math.random() * emojis.length)],
+        delay: Math.random() * 0.3, size: 20 + Math.random() * 24,
+      });
+    }
+    // Wave 2: rain from top (0.5-2s)
+    for (let i = 0; i < 30; i++) {
+      allParticles.push({
+        id: id++, x: Math.random() * 100, y: -5 - Math.random() * 15,
+        emoji: emojis[Math.floor(Math.random() * emojis.length)],
+        delay: 0.5 + Math.random() * 1.5, size: 14 + Math.random() * 18,
+      });
+    }
+    // Wave 3: sides burst (1-2.5s)
+    for (let i = 0; i < 20; i++) {
+      const fromLeft = i % 2 === 0;
+      allParticles.push({
+        id: id++, x: fromLeft ? -5 : 105, y: 30 + Math.random() * 40,
+        emoji: emojis[Math.floor(Math.random() * emojis.length)],
+        delay: 1 + Math.random() * 1.5, size: 18 + Math.random() * 22,
+      });
+    }
+
+    setConfetti(allParticles);
+    const t = setTimeout(() => setConfetti([]), 7000);
     return () => clearTimeout(t);
   }, [phase, winner]);
 
@@ -1128,27 +1150,48 @@ const BackgammonOnline = () => {
               className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
               style={{ background: "radial-gradient(circle, hsl(0 0% 0% / 0.7) 0%, hsl(0 0% 0% / 0.85) 100%)" }}
             >
-              {/* Confetti particles */}
-              {confetti.map((p) => (
-                <motion.span
-                  key={p.id}
-                  initial={{ x: `${p.x}vw`, y: `${p.y}vh`, opacity: 1, rotate: 0 }}
-                  animate={{
-                    y: `${110 + Math.random() * 20}vh`,
-                    rotate: 360 + Math.random() * 720,
-                    opacity: [1, 1, 0],
-                  }}
-                  transition={{
-                    duration: 3 + Math.random() * 2,
-                    delay: p.delay,
-                    ease: "easeOut",
-                  }}
-                  className="fixed pointer-events-none"
-                  style={{ fontSize: p.size, left: 0, top: 0 }}
-                >
-                  {p.emoji}
-                </motion.span>
-              ))}
+              {/* Confetti particles — multi-trajectory */}
+              {confetti.map((p) => {
+                const isBurst = p.y > 20; // center burst particles
+                const isSide = p.x < 0 || p.x > 100; // side burst
+                const endX = isBurst
+                  ? `${p.x + (Math.random() - 0.5) * 80}vw`
+                  : isSide
+                    ? `${50 + (Math.random() - 0.5) * 60}vw`
+                    : `${p.x + (Math.random() - 0.5) * 30}vw`;
+                const endY = isBurst
+                  ? `${-20 - Math.random() * 30}vh`
+                  : `${110 + Math.random() * 20}vh`;
+
+                return (
+                  <motion.span
+                    key={p.id}
+                    initial={{
+                      x: `${p.x}vw`, y: `${p.y}vh`,
+                      opacity: 0, rotate: 0, scale: 0,
+                    }}
+                    animate={{
+                      x: endX,
+                      y: isBurst
+                        ? [null, endY, `${40 + Math.random() * 60}vh`]
+                        : endY,
+                      rotate: (Math.random() > 0.5 ? 1 : -1) * (540 + Math.random() * 1080),
+                      opacity: [0, 1, 1, 1, 0],
+                      scale: [0, 1.3, 1, 1, 0.5],
+                    }}
+                    transition={{
+                      duration: isBurst ? 3.5 : 3 + Math.random() * 2,
+                      delay: p.delay,
+                      ease: isBurst ? "easeOut" : [0.25, 0.46, 0.45, 0.94],
+                      times: isBurst ? undefined : [0, 0.1, 0.3, 0.8, 1],
+                    }}
+                    className="fixed pointer-events-none"
+                    style={{ fontSize: p.size, left: 0, top: 0, zIndex: 60 }}
+                  >
+                    {p.emoji}
+                  </motion.span>
+                );
+              })}
 
               {/* Winner card */}
               <motion.div
@@ -1161,53 +1204,103 @@ const BackgammonOnline = () => {
                   boxShadow: "0 0 80px hsl(38, 90%, 55% / 0.15), 0 30px 60px -15px hsl(0 0% 0% / 0.8)",
                 }}
               >
-                {/* Crown */}
+                {/* Pulsing glow ring behind crown */}
                 <motion.div
-                  initial={{ scale: 0, rotate: -20 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 12, delay: 0.6 }}
-                  className="text-5xl sm:text-7xl"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: [0, 1.2, 1], opacity: [0, 0.4, 0.2] }}
+                  transition={{ duration: 1.5, delay: 0.4 }}
+                  className="absolute -top-8 w-36 h-36 sm:w-48 sm:h-48 rounded-full"
+                  style={{ background: "radial-gradient(circle, hsl(38, 90%, 55% / 0.3) 0%, transparent 70%)" }}
+                />
+
+                {/* Crown — drops in with bounce */}
+                <motion.div
+                  initial={{ scale: 0, y: -60, rotate: -30 }}
+                  animate={{ scale: [0, 1.4, 1], y: [-60, 10, 0], rotate: [-30, 10, 0] }}
+                  transition={{ type: "spring", stiffness: 200, damping: 10, delay: 0.5 }}
+                  className="text-6xl sm:text-8xl relative z-10"
                 >
                   👑
                 </motion.div>
 
-                {/* Winner name */}
+                {/* Winner name — typewriter gold glow */}
                 <motion.h2
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8 }}
-                  className="font-display text-2xl sm:text-4xl font-bold text-gradient-gold text-center"
+                  initial={{ opacity: 0, scale: 0.7, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 150, damping: 12, delay: 0.9 }}
+                  className="font-display text-3xl sm:text-5xl font-bold text-center relative z-10"
+                  style={{
+                    background: "linear-gradient(135deg, #f5e088, #d4af37, #b8922a)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    filter: "drop-shadow(0 0 20px hsl(38, 90%, 55% / 0.4))",
+                  }}
                 >
                   {winner}
                 </motion.h2>
 
-                {/* Subtitle */}
-                <motion.p
+                {/* Subtitle with sparkle */}
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ delay: 1.0 }}
-                  className="font-body text-sm text-muted-foreground"
+                  transition={{ delay: 1.1 }}
+                  className="flex items-center gap-2"
                 >
-                  Backgammon Champion
-                </motion.p>
+                  <motion.span animate={{ rotate: [0, 20, -20, 0] }} transition={{ repeat: Infinity, duration: 2 }}>✨</motion.span>
+                  <span className="font-body text-sm sm:text-base text-muted-foreground tracking-wide uppercase">Backgammon Champion</span>
+                  <motion.span animate={{ rotate: [0, -20, 20, 0] }} transition={{ repeat: Infinity, duration: 2 }}>✨</motion.span>
+                </motion.div>
 
-                {/* Clapping hands row */}
+                {/* Animated emoji celebration row */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.5 }}
+                  initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 1.2 }}
-                  className="flex gap-2 text-2xl sm:text-3xl"
+                  transition={{ type: "spring", stiffness: 200, damping: 15, delay: 1.3 }}
+                  className="flex gap-3 text-3xl sm:text-4xl"
                 >
-                  {["👏", "🎉", "👏", "🎊", "👏"].map((e, i) => (
+                  {["👏", "🎉", "🏆", "🎊", "👏"].map((e, i) => (
                     <motion.span
                       key={i}
-                      animate={{ y: [0, -8, 0] }}
-                      transition={{ repeat: Infinity, duration: 0.6, delay: i * 0.12 }}
+                      animate={{
+                        y: [0, -16, 0],
+                        scale: [1, 1.3, 1],
+                        rotate: [0, i % 2 === 0 ? 15 : -15, 0],
+                      }}
+                      transition={{
+                        repeat: Infinity,
+                        duration: 0.7,
+                        delay: i * 0.15,
+                        ease: "easeInOut",
+                      }}
                     >
                       {e}
                     </motion.span>
                   ))}
                 </motion.div>
+
+                {/* Orbiting emojis around the card */}
+                {["🌟", "💎", "🔥", "⭐"].map((emoji, i) => (
+                  <motion.span
+                    key={`orbit-${i}`}
+                    className="absolute text-2xl sm:text-3xl pointer-events-none"
+                    initial={{ opacity: 0 }}
+                    animate={{
+                      opacity: [0, 1, 1, 0],
+                      x: [0, Math.cos((i * Math.PI) / 2) * 140, Math.cos((i * Math.PI) / 2 + Math.PI) * 140, 0],
+                      y: [0, Math.sin((i * Math.PI) / 2) * 100, Math.sin((i * Math.PI) / 2 + Math.PI) * 100, 0],
+                      scale: [0.5, 1.2, 1, 0.5],
+                      rotate: [0, 360],
+                    }}
+                    transition={{
+                      duration: 4,
+                      delay: 1.5 + i * 0.4,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                  >
+                    {emoji}
+                  </motion.span>
+                ))}
 
                 {/* Rematch button */}
                 <motion.button
