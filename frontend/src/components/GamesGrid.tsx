@@ -29,10 +29,10 @@ const games = [
   { title: "War", image: gameWar, players: "2", duration: "15-30 min", rating: 4.3, category: "Card", online: 2104, requiresCamera: false, slug: "war" },
   { title: "Snap", image: gameSnap, players: "1", duration: "5-15 min", rating: 4.4, category: "Card", online: 1876, requiresCamera: false, slug: "snap" },
   { title: "What Do You Meme", image: gameMeme, players: "3-8", duration: "20-45 min", rating: 4.7, category: "Party", online: 4521, requiresCamera: true, slug: "what-do-you-meme" },
-  { title: "GeoQuest", image: gameGeoquest, players: "1-100", duration: "5-20 min", rating: 4.8, category: "Trivia", online: 481, requiresCamera: false, slug: "geoquest", externalUrl: "https://trivia.azurenexus.com" },
-  { title: "Speed Quiz", image: gameSpeedquiz, players: "1-50", duration: "3-10 min", rating: 4.6, category: "Trivia", online: 276, requiresCamera: false, slug: "speed-quiz", externalUrl: "https://trivia.azurenexus.com/quiz" },
-  { title: "Challenge", image: gameChallenge, players: "2", duration: "5-15 min", rating: 4.7, category: "Trivia", online: 154, requiresCamera: false, slug: "challenge", externalUrl: "https://trivia.azurenexus.com/challenge" },
-  { title: "Nation Match", image: gameNationmatch, players: "1", duration: "5-10 min", rating: 4.5, category: "Trivia", online: 203, requiresCamera: false, slug: "nation-match", externalUrl: "https://trivia.azurenexus.com/soul.html" },
+  { title: "GeoQuest", image: gameGeoquest, players: "1", duration: "5-20 min", rating: 4.8, category: "Trivia", online: 481, requiresCamera: false, slug: "geoquest" },
+  { title: "Speed Quiz", image: gameSpeedquiz, players: "1", duration: "3-10 min", rating: 4.6, category: "Trivia", online: 276, requiresCamera: false, slug: "speed-quiz" },
+  { title: "Challenge", image: gameChallenge, players: "1", duration: "5-15 min", rating: 4.7, category: "Trivia", online: 154, requiresCamera: false, slug: "challenge" },
+  { title: "Nation Match", image: gameNationmatch, players: "1", duration: "5-10 min", rating: 4.5, category: "Trivia", online: 203, requiresCamera: false, slug: "nation-match" },
 ];
 
 const GamesGrid = () => {

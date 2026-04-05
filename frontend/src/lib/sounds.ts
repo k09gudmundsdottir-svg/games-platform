@@ -353,3 +353,105 @@ export const playPieceDeselect = () => {
   osc.start(now);
   osc.stop(now + 0.1);
 };
+
+/** Correct answer — bright rising major third ding */
+export const playCorrectDing = () => {
+  const ctx = getCtx();
+  const now = ctx.currentTime;
+
+  // First note (C5)
+  const osc1 = ctx.createOscillator();
+  const g1 = ctx.createGain();
+  osc1.type = "sine";
+  osc1.frequency.value = 523;
+  g1.gain.setValueAtTime(0.2, now);
+  g1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  osc1.connect(g1).connect(ctx.destination);
+  osc1.start(now);
+  osc1.stop(now + 0.3);
+
+  // Second note (E5) — major third
+  const osc2 = ctx.createOscillator();
+  const g2 = ctx.createGain();
+  osc2.type = "sine";
+  osc2.frequency.value = 659;
+  g2.gain.setValueAtTime(0, now);
+  g2.gain.setValueAtTime(0.18, now + 0.08);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+  osc2.connect(g2).connect(ctx.destination);
+  osc2.start(now + 0.08);
+  osc2.stop(now + 0.35);
+
+  // Shimmer
+  const osc3 = ctx.createOscillator();
+  const g3 = ctx.createGain();
+  osc3.type = "sine";
+  osc3.frequency.value = 1318;
+  g3.gain.setValueAtTime(0, now);
+  g3.gain.setValueAtTime(0.06, now + 0.1);
+  g3.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+  osc3.connect(g3).connect(ctx.destination);
+  osc3.start(now + 0.1);
+  osc3.stop(now + 0.4);
+};
+
+/** Wrong answer — dissonant descending buzz */
+export const playBuzzerWrong = () => {
+  const ctx = getCtx();
+  const now = ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(300, now);
+  osc.frequency.exponentialRampToValueAtTime(150, now + 0.25);
+  gain.gain.setValueAtTime(0.1, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.3);
+
+  const osc2 = ctx.createOscillator();
+  const g2 = ctx.createGain();
+  osc2.type = "square";
+  osc2.frequency.setValueAtTime(280, now);
+  osc2.frequency.exponentialRampToValueAtTime(120, now + 0.2);
+  g2.gain.setValueAtTime(0.05, now);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  osc2.connect(g2).connect(ctx.destination);
+  osc2.start(now);
+  osc2.stop(now + 0.25);
+};
+
+/** Tick tock — clock tick for timer pressure */
+export const playTickTock = () => {
+  const ctx = getCtx();
+  const now = ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(1200, now);
+  osc.frequency.exponentialRampToValueAtTime(800, now + 0.03);
+  gain.gain.setValueAtTime(0.1, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.05);
+};
+
+/** Countdown beep — for 3-2-1 countdown */
+export const playCountdownBeep = () => {
+  const ctx = getCtx();
+  const now = ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.value = 880;
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.15);
+};

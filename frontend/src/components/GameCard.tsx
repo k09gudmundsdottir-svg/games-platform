@@ -21,6 +21,7 @@ interface GameCardProps {
 }
 
 const skillGames = ["Chess", "Backgammon", "Checkers", "Connect Four", "Hearts", "Gin Rummy", "Solitaire"];
+const triviaGames = ["GeoQuest", "Speed Quiz", "Challenge", "Nation Match"];
 
 const GameCard = ({ title, image, players, duration, rating, category, online, index, requiresCamera, slug, externalUrl }: GameCardProps) => {
   const [roomOpen, setRoomOpen] = useState(false);
@@ -31,8 +32,8 @@ const GameCard = ({ title, image, players, duration, rating, category, online, i
   const isSkillGame = skillGames.includes(title);
 
   const handlePlay = () => {
-    if (externalUrl) {
-      window.open(externalUrl, "_blank", "noopener,noreferrer");
+    if (triviaGames.includes(title)) {
+      navigate(`/play/${slug}`);
       return;
     }
     if (!isLoggedIn) {
