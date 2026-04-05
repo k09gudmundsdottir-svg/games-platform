@@ -71,7 +71,7 @@ const BackgammonOnline = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Reactions
-  const [floatingReaction, setFloatingReaction] = useState<{ emoji: string; id: number } | null>(null);
+  const [floatingReactions, setFloatingReactions] = useState<{ emoji: string; id: number; x: number; scale: number; rotate: number; duration: number }[]>([]);
 
   // Game state
   const [board, setBoard] = useState<number[]>([...INITIAL_BOARD]);
@@ -94,6 +94,23 @@ const BackgammonOnline = () => {
   const oppBar = isGold ? silverBar : goldBar;
   const myOff = isGold ? goldOff : silverOff;
   const oppOff = isGold ? silverOff : goldOff;
+
+  // Spawn a burst of animated emoji reactions
+  const spawnReactionBurst = useCallback((emoji: string) => {
+    const now = Date.now();
+    const burst = Array.from({ length: 7 }, (_, i) => ({
+      emoji,
+      id: now + i,
+      x: 30 + Math.random() * 40,
+      scale: 0.8 + Math.random() * 0.8,
+      rotate: (Math.random() - 0.5) * 60,
+      duration: 2 + Math.random() * 1.5,
+    }));
+    setFloatingReactions(prev => [...prev, ...burst]);
+    setTimeout(() => {
+      setFloatingReactions(prev => prev.filter(r => r.id < now || r.id >= now + 7 ? true : false));
+    }, 4000);
+  }, []);
 
   // Victory celebration — multi-wave confetti
   useEffect(() => {
@@ -215,8 +232,7 @@ const BackgammonOnline = () => {
 
     channel.on("broadcast", { event: "reaction" }, ({ payload }) => {
       if (payload.from !== role) {
-        setFloatingReaction({ emoji: payload.emoji, id: Date.now() });
-        setTimeout(() => setFloatingReaction(null), 2500);
+        spawnReactionBurst(payload.emoji);
       }
     });
 
@@ -1348,20 +1364,27 @@ const BackgammonOnline = () => {
       </div>
       {phase === "playing" && typeof window !== "undefined" && window.innerWidth >= 640 && <ChatBubble />}
 
-      {/* Floating reaction */}
+      {/* Floating reactions burst */}
       <AnimatePresence>
-        {floatingReaction && (
+        {floatingReactions.map((r) => (
           <motion.div
-            key={floatingReaction.id}
-            initial={{ opacity: 0, scale: 0.3, y: 0 }}
-            animate={{ opacity: 1, scale: 1.4, y: -120 }}
-            exit={{ opacity: 0, scale: 0.5, y: -200 }}
-            transition={{ duration: 2, ease: "easeOut" }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] pointer-events-none"
+            key={r.id}
+            initial={{ opacity: 0, scale: 0, y: "60vh", x: `${r.x}vw` }}
+            animate={{
+              opacity: [0, 1, 1, 0],
+              scale: [0, r.scale * 1.6, r.scale * 1.2, r.scale * 0.4],
+              y: ["60vh", `${20 + Math.random() * 20}vh`, `${5 + Math.random() * 15}vh`, "-10vh"],
+              x: `${r.x + (Math.random() - 0.5) * 20}vw`,
+              rotate: [0, r.rotate, r.rotate * 1.5, r.rotate * 2],
+            }}
+            exit={{ opacity: 0, scale: 0 }}
+            transition={{ duration: r.duration, ease: "easeOut", times: [0, 0.2, 0.6, 1] }}
+            className="fixed z-[100] pointer-events-none"
+            style={{ left: 0, top: 0 }}
           >
-            <span className="text-7xl sm:text-8xl drop-shadow-2xl">{floatingReaction.emoji}</span>
+            <span className="text-6xl sm:text-7xl" style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.5))" }}>{r.emoji}</span>
           </motion.div>
-        )}
+        ))}
       </AnimatePresence>
 
       {/* Emoji reaction bar */}
@@ -1387,21 +1410,20 @@ const BackgammonOnline = () => {
             ].map(({ emoji, label }) => (
               <motion.button
                 key={emoji}
-                whileTap={{ scale: 1.5 }}
+                whileTap={{ scale: 1.8, rotate: [0, -10, 10, 0] }}
+                whileHover={{ scale: 1.2, y: -4 }}
                 onClick={() => {
                   channelRef.current?.send({
                     type: "broadcast",
                     event: "reaction",
                     payload: { emoji, from: myRole },
                   });
-                  // Show own reaction briefly
-                  setFloatingReaction({ emoji, id: Date.now() });
-                  setTimeout(() => setFloatingReaction(null), 2500);
+                  spawnReactionBurst(emoji);
                 }}
-                className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-secondary/60 active:bg-primary/20 transition-colors"
+                className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl hover:bg-secondary/60 active:bg-primary/20 transition-colors"
                 title={label}
               >
-                <span className="text-lg sm:text-xl">{emoji}</span>
+                <span className="text-xl sm:text-2xl">{emoji}</span>
               </motion.button>
             ))}
           </div>
