@@ -512,14 +512,15 @@ const BackgammonGame = () => {
         </svg>
 
         {/* Pieces stack */}
-        <div className={`absolute ${isTop ? "top-0" : "bottom-0"} flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center`}>
+        <div className={`absolute ${isTop ? "top-0" : "bottom-0"} flex ${isTop ? "flex-col" : "flex-col-reverse"} items-center`}
+          style={{ gap: "1px" }}
+        >
           {Array.from({ length: maxShow }).map((_, j) => (
             <motion.div
               key={j}
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: j * 0.03 }}
-              style={j > 0 ? { marginTop: isTop ? "clamp(-8px, -1.2vw, -2px)" : undefined, marginBottom: !isTop ? "clamp(-8px, -1.2vw, -2px)" : undefined } : undefined}
             >
               <Checker
                 isPlayer={isPlayer}
