@@ -63,7 +63,9 @@ const GameCard = ({ title, image, players, duration, rating, category, online, i
           <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
           <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background/70 backdrop-blur-sm border border-border/30">
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            <span className="text-[10px] font-body font-medium text-foreground">vs AI</span>
+            <span className="text-[10px] font-body font-medium text-foreground">
+              {triviaGames.includes(title) ? "Solo" : "vs AI"}
+            </span>
           </div>
           <div className="absolute top-3 left-3 flex items-center gap-1.5">
             <div className="px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20">
