@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, RotateCcw, Users, Link2 } from "lucide-react";
 import GameLayout from "@/components/GameLayout";
-import { playDiceRoll, playPiecePlace, unlockAudio } from "@/lib/sounds";
+import { playDiceRoll, playPiecePlace, unlockAudio, playVictoryFanfare } from "@/lib/sounds";
 import { createClient } from "@supabase/supabase-js";
 import { useAuth } from "@/contexts/AuthContext";
 import { legendsApi } from "@/lib/api";
@@ -85,6 +85,7 @@ const BackgammonOnline = () => {
   const [silverOff, setSilverOff] = useState(0);
   const [message, setMessage] = useState("Waiting for opponent...");
   const [winner, setWinner] = useState<string | null>(null);
+  const [confetti, setConfetti] = useState<{ id: number; x: number; y: number; emoji: string; delay: number; size: number }[]>([]);
   const boardRef = useRef<HTMLDivElement>(null);
   const pointRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
@@ -93,6 +94,24 @@ const BackgammonOnline = () => {
   const oppBar = isGold ? silverBar : goldBar;
   const myOff = isGold ? goldOff : silverOff;
   const oppOff = isGold ? silverOff : goldOff;
+
+  // Victory celebration
+  useEffect(() => {
+    if (phase !== "gameover" || !winner) return;
+    playVictoryFanfare();
+    const emojis = ["🎉", "🏆", "👏", "⭐", "🥇", "✨", "🎊", "💫", "🔥", "👑"];
+    const particles = Array.from({ length: 40 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: -10 - Math.random() * 20,
+      emoji: emojis[Math.floor(Math.random() * emojis.length)],
+      delay: Math.random() * 1.5,
+      size: 16 + Math.random() * 20,
+    }));
+    setConfetti(particles);
+    const t = setTimeout(() => setConfetti([]), 5000);
+    return () => clearTimeout(t);
+  }, [phase, winner]);
 
   // Cleanup channel on unmount
   useEffect(() => {
@@ -1099,6 +1118,118 @@ const BackgammonOnline = () => {
           </div>
         </div>
 
+        {/* Victory Celebration Overlay */}
+        <AnimatePresence>
+          {phase === "gameover" && winner && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+              style={{ background: "radial-gradient(circle, hsl(0 0% 0% / 0.7) 0%, hsl(0 0% 0% / 0.85) 100%)" }}
+            >
+              {/* Confetti particles */}
+              {confetti.map((p) => (
+                <motion.span
+                  key={p.id}
+                  initial={{ x: `${p.x}vw`, y: `${p.y}vh`, opacity: 1, rotate: 0 }}
+                  animate={{
+                    y: `${110 + Math.random() * 20}vh`,
+                    rotate: 360 + Math.random() * 720,
+                    opacity: [1, 1, 0],
+                  }}
+                  transition={{
+                    duration: 3 + Math.random() * 2,
+                    delay: p.delay,
+                    ease: "easeOut",
+                  }}
+                  className="fixed pointer-events-none"
+                  style={{ fontSize: p.size, left: 0, top: 0 }}
+                >
+                  {p.emoji}
+                </motion.span>
+              ))}
+
+              {/* Winner card */}
+              <motion.div
+                initial={{ scale: 0.3, opacity: 0, y: 40 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.3 }}
+                className="relative pointer-events-auto flex flex-col items-center gap-4 px-8 py-10 sm:px-14 sm:py-12 rounded-3xl border border-primary/30"
+                style={{
+                  background: "linear-gradient(145deg, hsl(25, 20%, 12%) 0%, hsl(20, 18%, 6%) 100%)",
+                  boxShadow: "0 0 80px hsl(38, 90%, 55% / 0.15), 0 30px 60px -15px hsl(0 0% 0% / 0.8)",
+                }}
+              >
+                {/* Crown */}
+                <motion.div
+                  initial={{ scale: 0, rotate: -20 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 12, delay: 0.6 }}
+                  className="text-5xl sm:text-7xl"
+                >
+                  👑
+                </motion.div>
+
+                {/* Winner name */}
+                <motion.h2
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                  className="font-display text-2xl sm:text-4xl font-bold text-gradient-gold text-center"
+                >
+                  {winner}
+                </motion.h2>
+
+                {/* Subtitle */}
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1.0 }}
+                  className="font-body text-sm text-muted-foreground"
+                >
+                  Backgammon Champion
+                </motion.p>
+
+                {/* Clapping hands row */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 1.2 }}
+                  className="flex gap-2 text-2xl sm:text-3xl"
+                >
+                  {["👏", "🎉", "👏", "🎊", "👏"].map((e, i) => (
+                    <motion.span
+                      key={i}
+                      animate={{ y: [0, -8, 0] }}
+                      transition={{ repeat: Infinity, duration: 0.6, delay: i * 0.12 }}
+                    >
+                      {e}
+                    </motion.span>
+                  ))}
+                </motion.div>
+
+                {/* Rematch button */}
+                <motion.button
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.5 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => { setConfetti([]); resetGame(); }}
+                  className="mt-2 px-8 py-3 rounded-xl font-display font-semibold text-sm text-primary-foreground tracking-wide"
+                  style={{
+                    background: "linear-gradient(135deg, hsl(38, 90%, 55%), hsl(28, 85%, 42%))",
+                    boxShadow: "0 6px 24px -4px hsl(38, 90%, 55% / 0.4), inset 0 1px 0 hsl(45, 100%, 80% / 0.2)",
+                  }}
+                >
+                  <RotateCcw className="w-4 h-4 inline mr-2" /> Rematch
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Controls */}
         <div className="flex items-center gap-2 sm:gap-3 mt-1 sm:mt-4 shrink-0">
           {isMyTurn && dice.length === 0 && phase === "playing" && (
@@ -1113,13 +1244,6 @@ const BackgammonOnline = () => {
               className="px-4 py-2 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl font-display font-semibold text-xs sm:text-sm text-primary border border-primary/30"
               style={{ background: "hsl(38, 90%, 55% / 0.1)" }}>
               Bear Off
-            </motion.button>
-          )}
-          {phase === "gameover" && (
-            <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={resetGame}
-              className="px-5 py-2 sm:px-8 sm:py-3 rounded-lg sm:rounded-xl font-display font-semibold text-xs sm:text-sm text-primary-foreground tracking-wide"
-              style={{ background: "linear-gradient(135deg, hsl(38, 90%, 55%), hsl(28, 85%, 42%))", boxShadow: "0 6px 24px -4px hsl(38, 90%, 55% / 0.4)" }}>
-              <RotateCcw className="w-3.5 h-3.5 inline mr-2" /> Rematch
             </motion.button>
           )}
         </div>
