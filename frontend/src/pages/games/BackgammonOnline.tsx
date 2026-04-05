@@ -147,14 +147,25 @@ const BackgammonOnline = () => {
 
     channel.on("broadcast", { event: "game-state" }, ({ payload }) => {
       setBoard(payload.board);
-      setDice(payload.dice);
-      setMovesLeft(payload.movesLeft);
       setGoldBar(payload.goldBar);
       setSilverBar(payload.silverBar);
       setGoldOff(payload.goldOff);
       setSilverOff(payload.silverOff);
-      setIsMyTurn(payload.turn === role);
       setMessage(payload.message);
+
+      const myTurnNow = payload.turn === role;
+      setIsMyTurn(myTurnNow);
+
+      // When it becomes my turn, always clear dice so Roll button shows
+      // When it's opponent's turn, show their dice
+      if (myTurnNow) {
+        setDice([]);
+        setMovesLeft([]);
+      } else {
+        setDice(payload.dice || []);
+        setMovesLeft(payload.movesLeft || []);
+      }
+
       if (payload.winner) {
         setWinner(payload.winner);
         setPhase("gameover");
@@ -609,13 +620,14 @@ const BackgammonOnline = () => {
     setBoard(newBoard); setMovesLeft(remaining);
     setGoldBar(gBar); setSilverBar(sBar); setGoldOff(gOff); setSilverOff(sOff);
 
-    // Broadcast intermediate state so opponent sees live
-    const myTurnStill = remaining.length > 0;
-    broadcastState({
-      board: newBoard, dice, movesLeft: remaining, goldBar: gBar, silverBar: sBar,
-      goldOff: gOff, silverOff: sOff, turn: isGold ? "gold" : "silver",
-      message: myTurnStill ? "Opponent is moving..." : "Your turn — roll the dice",
-    });
+    // Only broadcast intermediate state if turn continues — avoid double-broadcast race
+    if (remaining.length > 0) {
+      broadcastState({
+        board: newBoard, dice, movesLeft: remaining, goldBar: gBar, silverBar: sBar,
+        goldOff: gOff, silverOff: sOff, turn: isGold ? "gold" : "silver",
+        message: "Opponent is moving...",
+      });
+    }
 
     endTurn(newBoard, remaining, gBar, sBar, gOff, sOff);
   };
