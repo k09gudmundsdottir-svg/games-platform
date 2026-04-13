@@ -97,7 +97,7 @@ const ChallengeWrapper = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <BrowserRouter>
+    <BrowserRouter basename="/games-platform">
       <AuthProvider>
         <ChallengeWrapper>
           <TooltipProvider>

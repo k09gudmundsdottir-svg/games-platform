@@ -9,10 +9,23 @@
     <title>AzureNexus Games</title>
     <meta name="description" content="Play Chess, Backgammon, UNO, and more online with friends" />
     <style>body{margin:0;background:#0a0a0f;}</style>
+    <script>
+      // GitHub Pages SPA redirect restore
+      (function(l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search.slice(1).split('&').map(function(s) {
+            return s.replace(/~and~/g, '&')
+          }).join('?');
+          window.history.replaceState(null, null,
+            l.pathname + decoded + l.hash
+          );
+        }
+      }(window.location))
+    </script>
   </head>
 
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
